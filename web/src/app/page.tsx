@@ -1,9 +1,5 @@
-import { CubeSceneLoader } from "@/components/cube/CubeSceneLoader";
+import { SolverLayout } from "./SolverLayout";
 
 export default function Home() {
-  return (
-    <main className="w-screen h-screen">
-      <CubeSceneLoader />
-    </main>
-  );
+  return <SolverLayout />;
 }
