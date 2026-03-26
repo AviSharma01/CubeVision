@@ -51,6 +51,7 @@ export interface CubeHandle {
   setSpeed(n: number): void; // speed multiplier (0.5, 1, 2, …)
   reset(): void;         // clear queue + revert to initial state
   loadState(state: CubeState): void; // set cube to a new state, clear queue
+  getState(): CubeState;             // read current display state
 }
 
 interface Props {
@@ -117,9 +118,9 @@ export const RubiksCube = forwardRef<CubeHandle, Props>(
         queueRef.current = [];
         animRef.current = null;
         stepModeRef.current = false;
-        displayStateRef.current = initialStateRef.current;
+        displayStateRef.current = SOLVED_STATE;
         if (pivotRef.current) pivotRef.current.rotation.set(0, 0, 0);
-        setDisplayState(initialStateRef.current);
+        setDisplayState(SOLVED_STATE);
         setAnimMove(null);
         notify();
       },
@@ -134,6 +135,9 @@ export const RubiksCube = forwardRef<CubeHandle, Props>(
         setDisplayState(state);
         setAnimMove(null);
         notify();
+      },
+      getState() {
+        return displayStateRef.current;
       },
     }));
 

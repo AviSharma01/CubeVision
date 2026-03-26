@@ -8,6 +8,7 @@ import { parseMoveSequence } from "@/lib/cube/moves";
 
 interface CubeSceneProps {
   cubeRef?: React.RefObject<CubeHandle | null>;
+  onStatusChange?: (status: PlaybackStatus) => void;
 }
 
 const SPEEDS = [0.5, 1, 2] as const;
@@ -16,10 +17,9 @@ type Speed = (typeof SPEEDS)[number];
 const DEMO_SEQUENCES: [string, string][] = [
   ["Sexy ×1",  "R U R' U'"],
   ["Sexy ×6",  "R U R' U' R U R' U' R U R' U' R U R' U' R U R' U' R U R' U'"],
-  ["Scramble", "R U R' F' R U R' U' R' F R2 U' R'"],
 ];
 
-export function CubeScene({ cubeRef: externalRef }: CubeSceneProps) {
+export function CubeScene({ cubeRef: externalRef, onStatusChange: onStatusChangeProp }: CubeSceneProps) {
   const internalRef = useRef<CubeHandle>(null);
   const cubeRef = externalRef ?? internalRef;
   const [status, setStatus] = useState<PlaybackStatus>({
@@ -27,6 +27,11 @@ export function CubeScene({ cubeRef: externalRef }: CubeSceneProps) {
     isAnimating: false,
     queueLength: 0,
   });
+
+  const handleStatusChange = (s: PlaybackStatus) => {
+    setStatus(s);
+    onStatusChangeProp?.(s);
+  };
   const [speed, setSpeed] = useState<Speed>(1);
 
   const queue = (notation: string) =>
@@ -48,7 +53,7 @@ export function CubeScene({ cubeRef: externalRef }: CubeSceneProps) {
         <ambientLight intensity={0.5} />
         <directionalLight position={[5, 8, 5]} intensity={1} />
         <directionalLight position={[-5, -3, -5]} intensity={0.3} />
-        <RubiksCube ref={cubeRef} onStatusChange={setStatus} />
+        <RubiksCube ref={cubeRef} onStatusChange={handleStatusChange} />
         <OrbitControls enablePan={false} dampingFactor={0.1} enableDamping />
       </Canvas>
 

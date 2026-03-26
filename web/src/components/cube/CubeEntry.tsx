@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { forwardRef, useImperativeHandle, useState } from "react";
 import {
   CubeState,
   Face,
@@ -30,11 +30,16 @@ const FACE_LAYOUT: Record<FaceId, [number, number]> = {
   D: [1, 2],
 };
 
+export interface CubeEntryHandle {
+  syncFromCube(): void;
+}
+
 interface Props {
   cubeRef: React.RefObject<CubeHandle | null>;
 }
 
-export function CubeEntry({ cubeRef }: Props) {
+export const CubeEntry = forwardRef<CubeEntryHandle, Props>(
+function CubeEntry({ cubeRef }, ref) {
   const [state, setState] = useState<CubeState>(SOLVED_STATE);
   const [selected, setSelected] = useState<Color>("W");
   const [loading, setLoading] = useState(false);
@@ -56,8 +61,25 @@ export function CubeEntry({ cubeRef }: Props) {
   }, {} as Record<Color, number>);
 
   const isValid = COLORS.every((c) => counts[c] === 9);
+  const isSolved = isValid && FACE_IDS.every((f) =>
+    state[f].every((c) => c === SOLVED_STATE[f][4])
+  );
+
+  const syncFromCube = () => {
+    const current = cubeRef.current?.getState();
+    if (current) {
+      setState(current);
+      setError(null);
+    }
+  };
+
+  useImperativeHandle(ref, () => ({ syncFromCube }));
 
   const handleSolve = async () => {
+    if (isSolved) {
+      setError("Already solved!");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -72,7 +94,6 @@ export function CubeEntry({ cubeRef }: Props) {
         throw new Error((data as { detail?: string }).detail ?? `Server error ${res.status}`);
       }
       const { moves } = (await res.json()) as { moves: MoveToken[]; move_count: number };
-      cubeRef.current?.loadState(state);
       cubeRef.current?.queueMoves(moves);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unknown error");
@@ -84,6 +105,7 @@ export function CubeEntry({ cubeRef }: Props) {
   const handleReset = () => {
     setState(SOLVED_STATE);
     setError(null);
+    cubeRef.current?.reset();
   };
 
   return (
@@ -165,6 +187,13 @@ export function CubeEntry({ cubeRef }: Props) {
           {loading ? "Solving…" : "Solve →"}
         </button>
         <button
+          onClick={syncFromCube}
+          title="Copy current 3D cube state into this panel"
+          className="rounded bg-white/10 hover:bg-white/20 px-3 py-1.5 text-sm text-white transition-colors active:scale-95"
+        >
+          ↓ Cube
+        </button>
+        <button
           onClick={handleReset}
           className="rounded bg-white/10 hover:bg-white/20 px-3 py-1.5 text-sm text-white transition-colors active:scale-95"
         >
@@ -173,4 +202,4 @@ export function CubeEntry({ cubeRef }: Props) {
       </div>
     </div>
   );
-}
+});

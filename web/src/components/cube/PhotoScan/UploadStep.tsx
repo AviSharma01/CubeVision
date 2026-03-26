@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FaceId, FACE_IDS, FACE_COLORS, COLOR_HEX } from "@/lib/cube/types";
 
 const FACE_LABEL: Record<FaceId, string> = {
@@ -22,11 +22,23 @@ export function UploadStep({ onJobCreated }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRefs = useRef<Partial<Record<FaceId, HTMLInputElement>>>({});
+  const previewsRef = useRef<Partial<Record<FaceId, string>>>({});
+
+  useEffect(() => {
+    return () => {
+      Object.values(previewsRef.current).forEach((url) => {
+        if (url) URL.revokeObjectURL(url);
+      });
+    };
+  }, []);
 
   const handleFile = (faceId: FaceId, file: File) => {
-    setFiles((prev) => ({ ...prev, [faceId]: file }));
+    const old = previewsRef.current[faceId];
+    if (old) URL.revokeObjectURL(old);
     const url = URL.createObjectURL(file);
-    setPreviews((prev) => ({ ...prev, [faceId]: url }));
+    previewsRef.current = { ...previewsRef.current, [faceId]: url };
+    setFiles((prev) => ({ ...prev, [faceId]: file }));
+    setPreviews(previewsRef.current);
     setError(null);
   };
 
@@ -119,7 +131,6 @@ export function UploadStep({ onJobCreated }: Props) {
                 }}
                 type="file"
                 accept="image/*"
-                capture="environment"
                 className="hidden"
                 onChange={(e) => {
                   const f = e.target.files?.[0];
