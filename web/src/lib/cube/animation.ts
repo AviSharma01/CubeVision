@@ -4,8 +4,8 @@ import { MoveToken } from "./types";
 // Per-move rotation data for Three.js animation
 //
 // Verified against the transformation formulas in moves.ts:
-//   R CW: (x,y,z) → (x,-z, y)  = Rx(+π/2)
-//   L CW: (x,y,z) → (x, z,-y)  = Rx(-π/2)
+//   R CW: (x,y,z) → (x, z,-y)  = Rx(-π/2)
+//   L CW: (x,y,z) → (x,-z, y)  = Rx(+π/2)
 //   U CW: (x,y,z) → (z, y,-x)  = Ry(+π/2)
 //   D CW: (x,y,z) → (-z,y, x)  = Ry(-π/2)
 //   F CW: (x,y,z) → (y,-x, z)  = Rz(-π/2)
@@ -20,12 +20,12 @@ export interface MoveRotation {
 const H = Math.PI / 2;
 
 export const MOVE_ROTATION: Record<MoveToken, MoveRotation> = {
-  R:   { axis: "x", angle:  H },
-  "R'":{ axis: "x", angle: -H },
+  R:   { axis: "x", angle: -H },
+  "R'":{ axis: "x", angle:  H },
   R2:  { axis: "x", angle:  Math.PI },
 
-  L:   { axis: "x", angle: -H },
-  "L'":{ axis: "x", angle:  H },
+  L:   { axis: "x", angle:  H },
+  "L'":{ axis: "x", angle: -H },
   L2:  { axis: "x", angle: -Math.PI },
 
   U:   { axis: "y", angle:  H },

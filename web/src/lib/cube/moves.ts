@@ -13,12 +13,6 @@ function rotateFace180(f: Face): Face {
   return [f[8], f[7], f[6], f[5], f[4], f[3], f[2], f[1], f[0]];
 }
 
-// ---------------------------------------------------------------------------
-// 4-cycle helpers
-// ---------------------------------------------------------------------------
-//
-// A cycle [a, b, c, d] means:  a → b → c → d → a  (CW direction)
-// i.e. new[b] = old[a], new[c] = old[b], new[d] = old[c], new[a] = old[d]
 
 type Ref = [FaceId, number];
 
@@ -49,8 +43,8 @@ function applyCycle180(s: CubeState, [a, b, c, d]: Ref[]): void {
 // Each entry is 3 cycles. Direction: a → b → c → d → a
 //
 // Derived from the rotation transformation per axis:
-//   R CW: (x,y,z) → (x, -z,  y)   [around +X]
-//   L CW: (x,y,z) → (x,  z, -y)   [around -X]
+//   R CW: (x,y,z) → (x,  z, -y)   [Rx(-π/2)]
+//   L CW: (x,y,z) → (x, -z,  y)   [Rx(+π/2)]
 //   U CW: (x,y,z) → (z,  y, -x)   [around +Y]
 //   D CW: (x,y,z) → (-z, y,  x)   [around -Y]
 //   F CW: (x,y,z) → (y, -x,  z)   [around +Z]
@@ -58,15 +52,15 @@ function applyCycle180(s: CubeState, [a, b, c, d]: Ref[]): void {
 // ---------------------------------------------------------------------------
 
 const R_CYCLES: Ref[][] = [
-  [["U", 2], ["F", 2], ["D", 2], ["B", 6]],
-  [["U", 5], ["F", 5], ["D", 5], ["B", 3]],
-  [["U", 8], ["F", 8], ["D", 8], ["B", 0]],
+  [["F", 2], ["U", 2], ["B", 6], ["D", 2]],
+  [["F", 5], ["U", 5], ["B", 3], ["D", 5]],
+  [["F", 8], ["U", 8], ["B", 0], ["D", 8]],
 ];
 
 const L_CYCLES: Ref[][] = [
-  [["U", 0], ["B", 8], ["D", 0], ["F", 0]],
-  [["U", 3], ["B", 5], ["D", 3], ["F", 3]],
-  [["U", 6], ["B", 2], ["D", 6], ["F", 6]],
+  [["U", 0], ["F", 0], ["D", 0], ["B", 8]],
+  [["U", 3], ["F", 3], ["D", 3], ["B", 5]],
+  [["U", 6], ["F", 6], ["D", 6], ["B", 2]],
 ];
 
 const U_CYCLES: Ref[][] = [
@@ -132,13 +126,13 @@ export function applyMove(state: CubeState, move: MoveToken): CubeState {
     case "U":
     case "U'":
     case "U2":
-      next.U = ccw ? rotateFaceCCW(state.U) : half ? rotateFace180(state.U) : rotateFaceCW(state.U);
+      next.U = ccw ? rotateFaceCW(state.U) : half ? rotateFace180(state.U) : rotateFaceCCW(state.U);
       U_CYCLES.forEach((c) => applyFn(next, c));
       break;
     case "D":
     case "D'":
     case "D2":
-      next.D = ccw ? rotateFaceCCW(state.D) : half ? rotateFace180(state.D) : rotateFaceCW(state.D);
+      next.D = ccw ? rotateFaceCW(state.D) : half ? rotateFace180(state.D) : rotateFaceCCW(state.D);
       D_CYCLES.forEach((c) => applyFn(next, c));
       break;
     case "F":
