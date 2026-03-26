@@ -4,6 +4,8 @@ from app.models import SolveRequest, SolveResponse
 
 router = APIRouter(prefix="/solve", tags=["solve"])
 
+_MOVE_TRANSLATION = {"U": "U'", "U'": "U", "D": "D'", "D'": "D"}
+
 
 @router.post("", response_model=SolveResponse)
 def solve(body: SolveRequest) -> SolveResponse:
@@ -12,5 +14,5 @@ def solve(body: SolveRequest) -> SolveResponse:
         solution: str = kociemba.solve(cube_str)
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f"Invalid cube state: {exc}")
-    moves = solution.strip().split()
+    moves = [_MOVE_TRANSLATION.get(m, m) for m in solution.strip().split()]
     return SolveResponse(moves=moves, move_count=len(moves))
