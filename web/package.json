@@ -1,6 +1,8 @@
 {
-  "name": "web",
+  "name": "cubevision",
   "version": "0.1.0",
+  "description": "Rubik's Cube solver — photo scan or manual entry, kociemba solution, 3D animated playback",
+  "author": "AviSharma01",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -20,8 +22,7 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "tailwind-merge": "^3.5.0",
-    "three": "^0.183.1",
-    "zustand": "^5.0.11"
+    "three": "^0.183.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

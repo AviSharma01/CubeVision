@@ -11,6 +11,8 @@ services:
       - /app/.next
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - api
 
   api:
     build:
@@ -20,41 +22,3 @@ services:
       - "8000:8000"
     volumes:
       - ./api:/app
-    environment:
-      - REDIS_URL=redis://redis:6379
-      - DATABASE_URL=postgresql+asyncpg://cube:cube@postgres:5432/cubevision
-    depends_on:
-      - redis
-      - postgres
-
-  worker:
-    build:
-      context: ./api
-    command: rq worker --url redis://redis:6379
-    volumes:
-      - ./api:/app
-    environment:
-      - REDIS_URL=redis://redis:6379
-      - DATABASE_URL=postgresql+asyncpg://cube:cube@postgres:5432/cubevision
-    depends_on:
-      - redis
-      - postgres
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-
-  postgres:
-    image: postgres:16-alpine
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_USER: cube
-      POSTGRES_PASSWORD: cube
-      POSTGRES_DB: cubevision
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-
-volumes:
-  pgdata:

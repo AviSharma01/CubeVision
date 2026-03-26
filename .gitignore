@@ -6,8 +6,12 @@ api/.env*
 api/*.egg-info/
 api/.pytest_cache/
 api/.mypy_cache/
+api/.ruff_cache/
 api/.coverage
 api/htmlcov/
+
+# Runtime
+api/uploads/
 
 # OS
 .DS_Store
