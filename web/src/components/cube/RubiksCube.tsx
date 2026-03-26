@@ -37,6 +37,7 @@ export interface PlaybackStatus {
   paused: boolean;
   isAnimating: boolean;
   queueLength: number;
+  currentMove: MoveToken | null;
 }
 
 export interface CubeHandle {
@@ -82,6 +83,7 @@ export const RubiksCube = forwardRef<CubeHandle, Props>(
         paused: pausedRef.current,
         isAnimating: !!animRef.current,
         queueLength: queueRef.current.length,
+        currentMove: animRef.current?.move ?? null,
       });
 
 

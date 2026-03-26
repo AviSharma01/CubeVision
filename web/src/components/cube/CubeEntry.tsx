@@ -112,7 +112,7 @@ function CubeEntry({ cubeRef }, ref) {
     <div className="flex flex-col gap-4">
 
       {/* Color palette */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 justify-center">
         {COLORS.map((c) => (
           <button
             key={c}
@@ -130,7 +130,7 @@ function CubeEntry({ cubeRef }, ref) {
       </div>
 
       {/* Sticker counts per color */}
-      <div className="flex gap-1.5 flex-wrap">
+      <div className="flex gap-1.5 flex-wrap justify-center">
         {COLORS.map((c) => (
           <span
             key={c}

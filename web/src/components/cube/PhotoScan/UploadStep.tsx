@@ -121,7 +121,7 @@ export function UploadStep({ onJobCreated }: Props) {
                 )}
                 {preview && (
                   <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 bg-black/40 transition-opacity">
-                    <span className="text-white text-xs">change</span>
+                    <span className="text-white text-xs">Change</span>
                   </div>
                 )}
               </button>
