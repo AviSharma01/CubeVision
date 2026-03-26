@@ -1,6 +1,6 @@
 # CubeVision
 
-I wanted a way to visually follow along with a Rubik's Cube solution — not just read a move sequence, but actually watch each turn happen and start recognising patterns I could internalise while solving. CubeVision lets you scan your cube, generates a solution, and plays it back move by move in 3D.
+I wanted a way to visually follow along with a Rubik's Cube solution - not just read a move sequence, but actually watch each turn happen and start recognising patterns I could internalise while solving. CubeVision lets you scan your cube, generates a solution, and plays it back move by move in 3D.
 
 ---
 
@@ -10,11 +10,11 @@ I wanted a way to visually follow along with a Rubik's Cube solution — not jus
 
 ## How it works
 
-1. **Scan** — upload a photo of each face. The CV pipeline divides each image into a 3×3 grid, samples the centre of each cell in LAB colour space, and matches it to the nearest reference colour. Each sticker gets a confidence score; low-confidence detections are flagged for manual correction before solving.
+1. **Scan** - upload a photo of each face. The CV pipeline divides each image into a 3×3 grid, samples the centre of each cell in LAB colour space, and matches it to the nearest reference colour. Each sticker gets a confidence score; low-confidence detections are flagged for manual correction before solving.
 
-2. **Solve** — the cube state is encoded as a 54-character string in URFDLB face order and passed to Kociemba's two-phase algorithm, which returns an optimal move sequence.
+2. **Solve** - the cube state is encoded as a 54-character string in URFDLB face order and passed to Kociemba's two-phase algorithm, which returns an optimal move sequence.
 
-3. **Playback** — 27 individual cubies are rendered in Three.js. Each move rotates a pivot group of 9 cubies with eased animation. A move indicator shows the current turn and progress through the sequence.
+3. **Playback** - 27 individual cubies are rendered in Three.js. Each move rotates a pivot group of 9 cubies with eased animation. A move indicator shows the current turn and progress through the sequence.
 
 ---
 
@@ -28,9 +28,9 @@ I wanted a way to visually follow along with a Rubik's Cube solution — not jus
 
 ## Stack
 
-- **Frontend** — Next.js, TypeScript, Tailwind, react-three-fiber
-- **Backend** — FastAPI, kociemba (Python), Pillow + numpy for CV
-- **Infra** — Docker Compose (web + api)
+- **Frontend** - Next.js, TypeScript, Tailwind, react-three-fiber
+- **Backend** - FastAPI, kociemba (Python), Pillow + numpy for CV
+- **Infra** - Docker Compose (web + api)
 
 ---
 
