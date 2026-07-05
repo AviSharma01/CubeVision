@@ -16,6 +16,13 @@ REFERENCE_LAB: dict[str, np.ndarray] = {
 # Distance at which confidence reaches 0 (calibrated experimentally)
 MAX_DIST = 80.0
 
+# Center-anchored white balance: max LAB deviation of the center sticker from
+# its reference before the correction is distrusted and skipped (calibrated
+# experimentally), and the fraction of the measured offset applied to the
+# other cells.
+TRUST_THRESHOLD = 45.0
+DAMPING = 0.75
+
 
 def _srgb_to_lab(rgb_u8: np.ndarray) -> np.ndarray:
     """Convert an RGB pixel (uint8, shape (3,)) to CIE-LAB."""
@@ -58,10 +65,10 @@ def _nearest_color(lab: np.ndarray) -> tuple[str, float]:
     return best_color, round(max(0.0, 1.0 - best_dist / MAX_DIST), 3)
 
 
-def detect_face(image_path: str) -> list[dict]:
+def detect_face(image_path: str, expected_center: str | None = None) -> list[dict]:
     img = Image.open(image_path).convert("RGB")
     w, h = img.size
-    results: list[dict] = []
+    labs: list[np.ndarray] = []
 
     for row in range(3):
         for col in range(3):
@@ -71,7 +78,23 @@ def detect_face(image_path: str) -> list[dict]:
             pad_x, pad_y = (x1 - x0) // 5, (y1 - y0) // 5
             cell = img.crop((x0 + pad_x, y0 + pad_y, x1 - pad_x, y1 - pad_y))
             median_rgb = np.median(np.array(cell).reshape(-1, 3), axis=0)
-            color, confidence = _nearest_color(_srgb_to_lab(median_rgb))
-            results.append({"color": color, "confidence": confidence})
+            labs.append(_srgb_to_lab(median_rgb))
+
+    # Center-anchored white balance: the center sticker's true color is known
+    # from which face this is, so its deviation from reference measures the
+    # lighting cast on the whole face. Apply a damped version of that offset
+    # to the other cells, unless the center is too far off to be trusted.
+    offset = np.zeros(3)
+    if expected_center is not None:
+        center_offset = labs[4] - REFERENCE_LAB[expected_center]
+        if float(np.linalg.norm(center_offset)) <= TRUST_THRESHOLD:
+            offset = DAMPING * center_offset
+
+    results: list[dict] = []
+    for i, lab in enumerate(labs):
+        # Cell 4 is always classified raw so a suspect center keeps its low
+        # confidence and surfaces in the review UI.
+        color, confidence = _nearest_color(lab if i == 4 else lab - offset)
+        results.append({"color": color, "confidence": confidence})
 
     return results

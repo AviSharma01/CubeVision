@@ -12,13 +12,16 @@ router = APIRouter(prefix="/analyze", tags=["analyze"])
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
+# True color of each face's center sticker, used to anchor white balance
+_FACE_COLOR = {"U": "W", "D": "Y", "F": "G", "B": "B", "L": "O", "R": "R"}
+
 
 def _run_analysis(job_id: str, image_paths: dict[str, str]) -> None:
     store.set_running(job_id)
     try:
         faces: dict[str, dict] = {}
         for face_id, path in image_paths.items():
-            stickers = detect_face(path)
+            stickers = detect_face(path, expected_center=_FACE_COLOR[face_id])
             faces[face_id] = {
                 "stickers": stickers,
                 "face_confidence": round(
