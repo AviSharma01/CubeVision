@@ -13,6 +13,7 @@ import {
 } from "@/lib/cube/types";
 import { CubeHandle } from "../RubiksCube";
 import { FaceGrid } from "../FaceGrid";
+import { Button } from "@/components/ui/Button";
 import { JobFaces } from "./ProcessingStep";
 
 const COLORS: Color[] = ["W", "Y", "G", "B", "O", "R"];
@@ -126,7 +127,7 @@ export function ReviewStep({ faces, cubeRef, onStartOver }: Props) {
             className={[
               "w-8 h-8 rounded-full transition-transform active:scale-95",
               selected === c
-                ? "ring-2 ring-white ring-offset-2 ring-offset-gray-900 scale-110"
+                ? "ring-2 ring-white ring-offset-2 ring-offset-panel scale-110"
                 : "opacity-60 hover:opacity-90",
             ].join(" ")}
           />
@@ -174,19 +175,15 @@ export function ReviewStep({ faces, cubeRef, onStartOver }: Props) {
       )}
 
       <div className="flex gap-2">
-        <button
+        <Button
+          variant="primary"
           onClick={handleSolve}
           disabled={loading || !isValid}
-          className="flex-1 rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-30 disabled:cursor-not-allowed px-3 py-1.5 text-sm text-white transition-colors active:scale-95"
+          className="flex-1"
         >
-          {loading ? "Solving…" : "Solve & Play →"}
-        </button>
-        <button
-          onClick={onStartOver}
-          className="rounded bg-white/10 hover:bg-white/20 px-3 py-1.5 text-sm text-white transition-colors active:scale-95"
-        >
-          Retake
-        </button>
+          {loading ? "Solving…" : "Solve & play"}
+        </Button>
+        <Button onClick={onStartOver}>Retake</Button>
       </div>
     </div>
   );

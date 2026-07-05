@@ -1,6 +1,6 @@
 import { CubeState, Color, FaceId, COLOR_HEX } from "./types";
 
-const BLACK = "#111111";
+export const BLACK = "#111111";
 
 // For each face, the [x, y, z] cubie position of each sticker (index 0–8, row-major).
 //

@@ -26,11 +26,13 @@ const POLL_INTERVAL_MS = 1000;
 
 export function ProcessingStep({ jobId, onDone, onFailed }: Props) {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // Refs so the effect never needs to restart when parent re-renders
+  // Refs so the polling effect never needs to restart when parent re-renders
   const onDoneRef = useRef(onDone);
-  onDoneRef.current = onDone;
   const onFailedRef = useRef(onFailed);
-  onFailedRef.current = onFailed;
+  useEffect(() => {
+    onDoneRef.current = onDone;
+    onFailedRef.current = onFailed;
+  }, [onDone, onFailed]);
 
   useEffect(() => {
     const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";

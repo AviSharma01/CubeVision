@@ -13,6 +13,8 @@ import {
 } from "@/lib/cube/types";
 import { CubeHandle } from "./RubiksCube";
 import { FaceGrid } from "./FaceGrid";
+import { Button } from "@/components/ui/Button";
+import { ArrowDownToLine, RotateCcw } from "lucide-react";
 
 const COLORS: Color[] = ["W", "Y", "G", "B", "O", "R"];
 
@@ -105,7 +107,7 @@ function CubeEntry({ cubeRef }, ref) {
   const handleReset = () => {
     setState(SOLVED_STATE);
     setError(null);
-    cubeRef.current?.reset();
+    cubeRef.current?.loadState(SOLVED_STATE);
   };
 
   return (
@@ -122,7 +124,7 @@ function CubeEntry({ cubeRef }, ref) {
             className={[
               "w-8 h-8 rounded-full transition-transform active:scale-95",
               selected === c
-                ? "ring-2 ring-white ring-offset-2 ring-offset-gray-900 scale-110"
+                ? "ring-2 ring-white ring-offset-2 ring-offset-panel scale-110"
                 : "opacity-60 hover:opacity-90",
             ].join(" ")}
           />
@@ -179,26 +181,20 @@ function CubeEntry({ cubeRef }, ref) {
 
       {/* Actions */}
       <div className="flex gap-2">
-        <button
+        <Button
+          variant="primary"
           onClick={handleSolve}
           disabled={loading || !isValid}
-          className="flex-1 rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-30 disabled:cursor-not-allowed px-3 py-1.5 text-sm text-white transition-colors active:scale-95"
+          className="flex-1"
         >
-          {loading ? "Solving…" : "Solve →"}
-        </button>
-        <button
-          onClick={syncFromCube}
-          title="Copy current 3D cube state into this panel"
-          className="rounded bg-white/10 hover:bg-white/20 px-3 py-1.5 text-sm text-white transition-colors active:scale-95"
-        >
-          ↓ Cube
-        </button>
-        <button
-          onClick={handleReset}
-          className="rounded bg-white/10 hover:bg-white/20 px-3 py-1.5 text-sm text-white transition-colors active:scale-95"
-        >
-          Reset
-        </button>
+          {loading ? "Solving…" : "Solve"}
+        </Button>
+        <Button onClick={syncFromCube} title="Copy the current 3D cube state into this panel">
+          <ArrowDownToLine size={14} /> Cube
+        </Button>
+        <Button onClick={handleReset}>
+          <RotateCcw size={14} /> Reset
+        </Button>
       </div>
     </div>
   );

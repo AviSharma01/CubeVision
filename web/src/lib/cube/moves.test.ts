@@ -46,12 +46,12 @@ const suneInv = parseMoveSequence("R U2 R' U' R U' R'");
 const afterSunePair = applyMoves(SOLVED_STATE, [...sune, ...suneInv]);
 assert(koc(afterSunePair) === SOLVED_KOC, "Sune then inverse Sune = solved");
 
-// --- 6. Single R move: F top-right (F[2]) should be white ---
+// --- 6. Single R move: the right column cycles F → U → B → D → F ---
 const afterR = applyMove(SOLVED_STATE, "R");
-assert(afterR.F[2] === "W", "After R: F[2] is white (came from U[8])");
-assert(afterR.U[2] === "B", "After R: U[2] is blue (came from B[0])");
-assert(afterR.D[2] === "G", "After R: D[2] is green (came from F[2])");
-assert(afterR.B[0] === "Y", "After R: B[0] is yellow (came from D[8])");
+assert(afterR.U[2] === "G", "After R: U[2] is green (came from F[2])");
+assert(afterR.B[6] === "W", "After R: B[6] is white (came from U[2])");
+assert(afterR.D[2] === "B", "After R: D[2] is blue (came from B[6])");
+assert(afterR.F[2] === "Y", "After R: F[2] is yellow (came from D[2])");
 
 // --- 7. parseMoveSequence ---
 const seq = parseMoveSequence("R U R' U'");

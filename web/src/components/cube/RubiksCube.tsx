@@ -2,6 +2,7 @@
 
 import {
   forwardRef,
+  useEffect,
   useImperativeHandle,
   useRef,
   useState,
@@ -38,6 +39,10 @@ export interface PlaybackStatus {
   isAnimating: boolean;
   queueLength: number;
   currentMove: MoveToken | null;
+  /** Moves applied since the last loadState / reset (in order) */
+  history: MoveToken[];
+  /** Moves still waiting in the queue (in order) */
+  pending: MoveToken[];
 }
 
 export interface CubeHandle {
@@ -75,8 +80,11 @@ export const RubiksCube = forwardRef<CubeHandle, Props>(
     const pausedRef = useRef(false);
     const speedRef = useRef(1);
     const stepModeRef = useRef(false); // execute one move then re-pause
+    const historyRef = useRef<MoveToken[]>([]);
     const onStatusChangeRef = useRef(onStatusChange);
-    onStatusChangeRef.current = onStatusChange; // stay current without re-subscribing
+    useEffect(() => {
+      onStatusChangeRef.current = onStatusChange; // stay current without re-subscribing
+    }, [onStatusChange]);
 
     const notify = () =>
       onStatusChangeRef.current?.({
@@ -84,6 +92,8 @@ export const RubiksCube = forwardRef<CubeHandle, Props>(
         isAnimating: !!animRef.current,
         queueLength: queueRef.current.length,
         currentMove: animRef.current?.move ?? null,
+        history: [...historyRef.current],
+        pending: [...queueRef.current],
       });
 
 
@@ -120,9 +130,10 @@ export const RubiksCube = forwardRef<CubeHandle, Props>(
         queueRef.current = [];
         animRef.current = null;
         stepModeRef.current = false;
-        displayStateRef.current = SOLVED_STATE;
+        historyRef.current = [];
+        displayStateRef.current = initialStateRef.current;
         if (pivotRef.current) pivotRef.current.rotation.set(0, 0, 0);
-        setDisplayState(SOLVED_STATE);
+        setDisplayState(initialStateRef.current);
         setAnimMove(null);
         notify();
       },
@@ -131,6 +142,7 @@ export const RubiksCube = forwardRef<CubeHandle, Props>(
         animRef.current = null;
         stepModeRef.current = false;
         pausedRef.current = false;
+        historyRef.current = [];
         displayStateRef.current = state;
         initialStateRef.current = state;
         if (pivotRef.current) pivotRef.current.rotation.set(0, 0, 0);
@@ -175,6 +187,7 @@ export const RubiksCube = forwardRef<CubeHandle, Props>(
       if (anim.elapsed >= anim.duration) {
         const newState = applyMove(displayStateRef.current, anim.move);
         displayStateRef.current = newState;
+        historyRef.current.push(anim.move);
 
         animRef.current = null;
 

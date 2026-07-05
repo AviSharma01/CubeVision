@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { FaceId, FACE_IDS, FACE_COLORS, COLOR_HEX } from "@/lib/cube/types";
+import { Button } from "@/components/ui/Button";
 
 const FACE_LABEL: Record<FaceId, string> = {
   U: "Top (White)",
@@ -146,13 +147,13 @@ export function UploadStep({ onJobCreated }: Props) {
         <p className="text-xs text-red-400 bg-red-400/10 rounded p-2 leading-relaxed">{error}</p>
       )}
 
-      <button
+      <Button
+        variant="primary"
         onClick={handleAnalyze}
         disabled={!allUploaded || loading}
-        className="rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-30 disabled:cursor-not-allowed px-3 py-1.5 text-sm text-white transition-colors active:scale-95"
       >
-        {loading ? "Uploading…" : allUploaded ? "Analyze →" : `${FACE_IDS.filter((f) => !files[f]).length} faces missing`}
-      </button>
+        {loading ? "Uploading…" : allUploaded ? "Analyze" : `${FACE_IDS.filter((f) => !files[f]).length} faces missing`}
+      </Button>
     </div>
   );
 }

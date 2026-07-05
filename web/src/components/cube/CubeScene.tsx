@@ -1,9 +1,11 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
+import { OrbitControls, ContactShadows } from "@react-three/drei";
+import { Play, Pause, SkipForward, RotateCcw, Info, X } from "lucide-react";
 import { RubiksCube, CubeHandle, PlaybackStatus } from "./RubiksCube";
+import { Button } from "@/components/ui/Button";
 import { parseMoveSequence } from "@/lib/cube/moves";
 import { MoveToken } from "@/lib/cube/types";
 
@@ -16,8 +18,8 @@ const SPEEDS = [0.5, 1, 2] as const;
 type Speed = (typeof SPEEDS)[number];
 
 const DEMO_SEQUENCES: [string, string][] = [
-  ["Sexy ×1",  "R U R' U'"],
-  ["Sexy ×6",  "R U R' U' R U R' U' R U R' U' R U R' U' R U R' U' R U R' U'"],
+  ["Sexy ×1", "R U R' U'"],
+  ["Sexy ×6", "R U R' U' R U R' U' R U R' U' R U R' U' R U R' U' R U R' U'"],
 ];
 
 const MOVE_NAMES: Record<string, [string, string]> = {
@@ -29,26 +31,68 @@ const MOVE_NAMES: Record<string, [string, string]> = {
   "B":  ["Back",   "↻"], "B'": ["Back",   "↺"], "B2": ["Back",   "180°"],
 };
 
-function MoveIndicator({ move, moveNumber, total }: {
-  move: MoveToken;
-  moveNumber: number;
-  total: number;
-}) {
+function MoveIndicator({ move }: { move: MoveToken }) {
   const [face, dir] = MOVE_NAMES[move] ?? [move, ""];
   return (
-    <div className="animate-in fade-in slide-in-from-top-3 duration-150 flex flex-col items-center gap-1.5">
-      <div className="bg-black/70 backdrop-blur-sm border border-white/10 rounded-2xl px-6 py-3 text-center">
+    <div className="animate-in fade-in slide-in-from-top-3 duration-150 flex flex-col items-center">
+      <div className="bg-panel/80 backdrop-blur-sm border border-hairline rounded-2xl px-6 py-3 text-center">
         <div className="flex items-baseline justify-center gap-2">
-          <span className="text-4xl font-mono font-bold text-white tracking-tight">{move}</span>
+          <span className="text-4xl font-mono font-bold tracking-tight">{move}</span>
           <span className="text-2xl text-white/50">{dir}</span>
         </div>
         <p className="text-white/40 text-xs mt-0.5 tracking-wide">{face}</p>
       </div>
-      {total > 0 && (
-        <p className="text-white/30 text-xs tabular-nums">
-          {moveNumber} / {total}
-        </p>
-      )}
+    </div>
+  );
+}
+
+/**
+ * Solution tape — the full move sequence as a horizontal strip.
+ * Completed moves dim, the current move is highlighted, upcoming moves wait
+ * to the right. Auto-scrolls to keep the current move centred.
+ */
+function MoveTape({ status }: { status: PlaybackStatus }) {
+  const activeRef = useRef<HTMLSpanElement>(null);
+  const doneCount = status.history.length;
+
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({
+      behavior: "smooth",
+      inline: "center",
+      block: "nearest",
+    });
+  }, [doneCount, status.currentMove]);
+
+  const tokens: { move: MoveToken; state: "done" | "current" | "pending" }[] = [
+    ...status.history.map((m) => ({ move: m, state: "done" as const })),
+    ...(status.currentMove
+      ? [{ move: status.currentMove, state: "current" as const }]
+      : []),
+    ...status.pending.map((m) => ({ move: m, state: "pending" as const })),
+  ];
+
+  if (tokens.length === 0) return null;
+
+  return (
+    <div className="no-scrollbar max-w-[min(90vw,42rem)] overflow-x-auto rounded-xl border border-hairline bg-panel/80 px-3 py-2 backdrop-blur-sm">
+      <div className="flex w-max items-center gap-1 font-mono text-sm">
+        {tokens.map(({ move, state }, i) => (
+          <span
+            key={i}
+            ref={state === "current" ? activeRef : undefined}
+            className={[
+              "rounded-md px-1.5 py-0.5 tabular-nums transition-colors duration-200",
+              state === "done" && "text-white/30",
+              state === "current" && "bg-white font-bold text-black",
+              state === "pending" && "text-white/70",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          >
+            {move}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
@@ -60,16 +104,17 @@ function InfoModal({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
-        className="animate-in fade-in zoom-in-95 duration-150 bg-gray-900 border border-white/10 rounded-2xl p-6 max-w-xs w-full mx-4"
+        className="animate-in fade-in zoom-in-95 duration-150 bg-panel border border-hairline rounded-2xl p-6 max-w-xs w-full mx-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-white font-semibold text-sm">Move Notation</h2>
+          <h2 className="font-semibold text-sm">Move notation</h2>
           <button
             onClick={onClose}
-            className="text-white/30 hover:text-white text-xl leading-none transition-colors"
+            className="text-white/30 hover:text-white transition-colors"
+            aria-label="Close"
           >
-            ×
+            <X size={16} />
           </button>
         </div>
 
@@ -86,14 +131,14 @@ function InfoModal({ onClose }: { onClose: () => void }) {
                 ["R", "Right (Red)"],
               ] as const).map(([k, v]) => (
                 <div key={k} className="flex gap-2.5 items-center">
-                  <span className="font-mono text-white w-4 shrink-0">{k}</span>
+                  <span className="font-mono w-4 shrink-0">{k}</span>
                   <span className="text-white/50">{v}</span>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="border-t border-white/10 pt-4">
+          <div className="border-t border-hairline pt-4">
             <p className="text-white/30 uppercase tracking-widest text-[10px] mb-2">Modifiers</p>
             <div className="space-y-1.5">
               {([
@@ -102,23 +147,23 @@ function InfoModal({ onClose }: { onClose: () => void }) {
                 ["R2", "Half turn 180°"],
               ] as const).map(([k, v]) => (
                 <div key={k} className="flex gap-2.5 items-center">
-                  <span className="font-mono text-white w-6 shrink-0">{k}</span>
+                  <span className="font-mono w-6 shrink-0">{k}</span>
                   <span className="text-white/50">{v}</span>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="border-t border-white/10 pt-4 space-y-1.5">
+          <div className="border-t border-hairline pt-4 space-y-1.5">
             <p className="text-white/30 uppercase tracking-widest text-[10px] mb-2">Demo sequences</p>
             <div className="flex gap-2.5 items-start">
-              <span className="font-mono text-white shrink-0 text-[11px]">Sexy ×6</span>
-              <span className="text-white/50">The "sexy move" (R U R' U') is classic cube slang for this satisfying 4-move sequence. Repeated 6 times it cycles back to solved.</span>
+              <span className="font-mono shrink-0 text-[11px]">Sexy ×6</span>
+              <span className="text-white/50">The &quot;sexy move&quot; (R U R&apos; U&apos;) is classic cube slang for this satisfying 4-move sequence. Repeated 6 times it cycles back to solved.</span>
             </div>
           </div>
 
-          <p className="border-t border-white/10 pt-4 text-white/20 text-[10px] leading-relaxed">
-            Kociemba's algorithm solves any cube position in ≤ 20 moves.
+          <p className="border-t border-hairline pt-4 text-white/20 text-[10px] leading-relaxed">
+            Kociemba&apos;s algorithm solves any cube position in ≤ 20 moves.
           </p>
         </div>
       </div>
@@ -134,29 +179,16 @@ export function CubeScene({ cubeRef: externalRef, onStatusChange: onStatusChange
     isAnimating: false,
     queueLength: 0,
     currentMove: null,
+    history: [],
+    pending: [],
   });
-
-  const totalRef = useRef(0);
-  const [total, setTotal] = useState(0);
   const [showInfo, setShowInfo] = useState(false);
+  const [speed, setSpeed] = useState<Speed>(1);
 
   const handleStatusChange = (s: PlaybackStatus) => {
     setStatus(s);
     onStatusChangeProp?.(s);
-
-    const count = s.queueLength + (s.isAnimating ? 1 : 0);
-    if (count > 0) {
-      if (count > totalRef.current) {
-        totalRef.current = count;
-        setTotal(count);
-      }
-    } else {
-      totalRef.current = 0;
-      setTotal(0);
-    }
   };
-
-  const [speed, setSpeed] = useState<Speed>(1);
 
   const queue = (notation: string) =>
     cubeRef.current?.queueMoves(parseMoveSequence(notation));
@@ -167,41 +199,42 @@ export function CubeScene({ cubeRef: externalRef, onStatusChange: onStatusChange
   };
 
   const isActive = status.isAnimating || status.queueLength > 0;
-  const moveNumber = total > 0 && status.currentMove ? total - status.queueLength : 0;
+  const done = status.history.length;
+  const total = done + (status.currentMove ? 1 : 0) + status.queueLength;
+  const moveNumber = done + (status.currentMove ? 1 : 0);
   const progress = total > 0 ? (moveNumber / total) * 100 : 0;
 
   return (
-    <div className="relative w-full h-full">
-      <Canvas
-        camera={{ position: [5, 4, 5], fov: 40 }}
-        style={{ background: "#111827" }}
-      >
-        <ambientLight intensity={0.5} />
-        <directionalLight position={[5, 8, 5]} intensity={1} />
-        <directionalLight position={[-5, -3, -5]} intensity={0.3} />
+    <div
+      className="relative w-full h-full"
+      style={{
+        background:
+          "radial-gradient(ellipse 80% 70% at 50% 40%, #1b1b20 0%, #0b0b0c 70%)",
+      }}
+    >
+      <Canvas camera={{ position: [5, 4, 5], fov: 40 }} gl={{ alpha: true }}>
+        <ambientLight intensity={0.55} />
+        <directionalLight position={[6, 8, 4]} intensity={1.1} />
+        <directionalLight position={[-6, -2, -5]} intensity={0.3} />
         <RubiksCube ref={cubeRef} onStatusChange={handleStatusChange} />
+        <ContactShadows position={[0, -2.4, 0]} opacity={0.4} scale={12} blur={2.4} far={4} />
         <OrbitControls enablePan={false} dampingFactor={0.1} enableDamping />
       </Canvas>
 
       {/* Progress bar */}
-      {total > 0 && (
+      {isActive && total > 0 && (
         <div className="absolute top-0 left-0 right-0 h-0.5 bg-white/10 z-10">
           <div
-            className="h-full bg-blue-500 transition-[width] duration-300"
+            className="h-full bg-white/70 transition-[width] duration-300"
             style={{ width: `${progress}%` }}
           />
         </div>
       )}
 
-      {/* Move indicator */}
+      {/* Current move indicator */}
       {status.currentMove && (
         <div className="absolute top-6 left-1/2 -translate-x-1/2 pointer-events-none z-10">
-          <MoveIndicator
-            key={`${total}-${moveNumber}`}
-            move={status.currentMove}
-            moveNumber={moveNumber}
-            total={total}
-          />
+          <MoveIndicator key={`${total}-${moveNumber}`} move={status.currentMove} />
         </div>
       )}
 
@@ -209,92 +242,64 @@ export function CubeScene({ cubeRef: externalRef, onStatusChange: onStatusChange
       <button
         onClick={() => setShowInfo(true)}
         title="Move notation reference"
-        className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-white/50 hover:text-white text-sm flex items-center justify-center transition-colors"
+        aria-label="Move notation reference"
+        className="absolute top-2 right-2 z-10 w-8 h-8 rounded-full bg-white/[0.06] hover:bg-white/[0.12] text-white/50 hover:text-white flex items-center justify-center transition-colors"
       >
-        ⓘ
+        <Info size={15} />
       </button>
 
-      {/* Info modal */}
       {showInfo && <InfoModal onClose={() => setShowInfo(false)} />}
 
-      <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 flex-col items-center gap-2">
-        {/* Queue indicator */}
+      {/* Bottom cluster: tape + transport controls */}
+      <div className="absolute bottom-5 left-1/2 flex -translate-x-1/2 flex-col items-center gap-2.5">
+        <MoveTape status={status} />
+
         {isActive && (
-          <p className="text-xs text-white/50">
-            {status.isAnimating ? "animating" : "paused"} · {status.queueLength} move
-            {status.queueLength !== 1 ? "s" : ""} remaining
+          <p className="text-xs text-white/40 tabular-nums">
+            {status.isAnimating ? "playing" : "paused"} · move {moveNumber} of {total}
           </p>
         )}
 
-        <div className="flex gap-2">
-          {/* Demo sequences */}
+        <div className="flex items-center gap-2">
           {DEMO_SEQUENCES.map(([label, moves]) => (
-            <Btn key={label} onClick={() => queue(moves)}>
+            <Button key={label} onClick={() => queue(moves)}>
               {label}
-            </Btn>
+            </Button>
           ))}
 
-          <div className="w-px bg-white/20" />
+          <div className="h-5 w-px bg-hairline" />
 
-          {/* Play / Pause */}
           {status.paused ? (
-            <Btn onClick={() => cubeRef.current?.resume()}>▶ Play</Btn>
+            <Button onClick={() => cubeRef.current?.resume()}>
+              <Play size={14} /> Play
+            </Button>
           ) : (
-            <Btn onClick={() => cubeRef.current?.pause()} disabled={!isActive}>
-              ⏸ Pause
-            </Btn>
+            <Button onClick={() => cubeRef.current?.pause()} disabled={!isActive}>
+              <Pause size={14} /> Pause
+            </Button>
           )}
 
-          {/* Step */}
-          <Btn
+          <Button
             onClick={() => cubeRef.current?.step()}
             disabled={!status.paused || status.queueLength === 0}
+            title="Play the next move, then pause"
           >
-            ⏭ Step
-          </Btn>
+            <SkipForward size={14} /> Step
+          </Button>
 
-          {/* Reset */}
-          <Btn onClick={() => cubeRef.current?.reset()}>↺ Reset</Btn>
+          <Button onClick={() => cubeRef.current?.reset()} title="Back to the starting position">
+            <RotateCcw size={14} /> Reset
+          </Button>
 
-          <div className="w-px bg-white/20" />
+          <div className="h-5 w-px bg-hairline" />
 
-          {/* Speed */}
           {SPEEDS.map((n) => (
-            <Btn key={n} onClick={() => handleSpeed(n)} active={speed === n}>
+            <Button key={n} onClick={() => handleSpeed(n)} active={speed === n} className="tabular-nums">
               {n}×
-            </Btn>
+            </Button>
           ))}
         </div>
       </div>
     </div>
-  );
-}
-
-function Btn({
-  children,
-  onClick,
-  disabled,
-  active,
-}: {
-  children: React.ReactNode;
-  onClick?: () => void;
-  disabled?: boolean;
-  active?: boolean;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={[
-        "rounded px-3 py-1.5 text-sm text-white backdrop-blur transition-all",
-        "disabled:cursor-not-allowed disabled:opacity-30",
-        "active:scale-95",
-        active
-          ? "bg-white/30 ring-1 ring-white/50"
-          : "bg-white/10 hover:bg-white/20",
-      ].join(" ")}
-    >
-      {children}
-    </button>
   );
 }
