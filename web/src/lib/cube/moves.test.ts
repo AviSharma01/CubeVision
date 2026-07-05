@@ -1,5 +1,5 @@
 // Smoke tests for move logic — run with: npx tsx src/lib/cube/moves.test.ts
-import { applyMove, applyMoves, parseMoveSequence } from "./moves";
+import { applyMove, applyMoves, generateScramble, parseMoveSequence } from "./moves";
 import { SOLVED_STATE, toKociembaString, CubeState } from "./types";
 
 const SOLVED_KOC = toKociembaString(SOLVED_STATE);
@@ -57,5 +57,28 @@ assert(afterR.F[2] === "Y", "After R: F[2] is yellow (came from D[2])");
 const seq = parseMoveSequence("R U R' U'");
 assert(seq.length === 4, "parseMoveSequence length");
 assert(seq[0] === "R" && seq[2] === "R'", "parseMoveSequence tokens");
+
+// --- 8. generateScramble ---
+const scramble = generateScramble();
+assert(scramble.length === 22, "generateScramble default length is 22");
+
+const faceOf = (token: string) => token[0];
+let noConsecutiveSameFace = true;
+let allValid = true;
+for (let i = 0; i < 100; i++) {
+  const s = generateScramble();
+  for (let j = 1; j < s.length; j++) {
+    if (faceOf(s[j]) === faceOf(s[j - 1])) noConsecutiveSameFace = false;
+  }
+  for (const token of s) {
+    try {
+      parseMoveSequence(token);
+    } catch {
+      allValid = false;
+    }
+  }
+}
+assert(noConsecutiveSameFace, "no two consecutive moves share a face (100 scrambles)");
+assert(allValid, "every generated token parses as a valid move (100 scrambles)");
 
 console.log("\nAll tests passed ✓");

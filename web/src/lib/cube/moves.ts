@@ -177,3 +177,24 @@ export function parseMoveSequence(notation: string): MoveSequence {
       return token as MoveToken;
     });
 }
+
+const FACES: FaceId[] = ["U", "D", "F", "B", "L", "R"];
+const MODIFIERS = ["", "'", "2"] as const;
+
+export function generateScramble(length = 22): MoveSequence {
+  const moves: MoveSequence = [];
+  let lastFace: FaceId | null = null;
+
+  for (let i = 0; i < length; i++) {
+    let face: FaceId;
+    do {
+      face = FACES[Math.floor(Math.random() * FACES.length)];
+    } while (face === lastFace);
+    lastFace = face;
+
+    const modifier = MODIFIERS[Math.floor(Math.random() * MODIFIERS.length)];
+    moves.push(`${face}${modifier}` as MoveToken);
+  }
+
+  return moves;
+}

@@ -32,6 +32,13 @@ interface AnimData {
   targetAngle: number;
   elapsed: number;
   duration: number;
+  isUndo?: boolean;
+}
+
+function invertMove(move: MoveToken): MoveToken {
+  if (move.endsWith("2")) return move;
+  if (move.endsWith("'")) return move.slice(0, -1) as MoveToken;
+  return (`${move}'`) as MoveToken;
 }
 
 export interface PlaybackStatus {
@@ -39,6 +46,8 @@ export interface PlaybackStatus {
   isAnimating: boolean;
   queueLength: number;
   currentMove: MoveToken | null;
+  /** True while the in-flight animation is a stepBack() undo, not a forward move */
+  isUndo: boolean;
   /** Moves applied since the last loadState / reset (in order) */
   history: MoveToken[];
   /** Moves still waiting in the queue (in order) */
@@ -54,6 +63,7 @@ export interface CubeHandle {
   pause(): void;
   resume(): void;
   step(): void;          // execute next queued move then re-pause
+  stepBack(): void;      // undo the last history move then re-pause
   setSpeed(n: number): void; // speed multiplier (0.5, 1, 2, …)
   reset(): void;         // clear queue + revert to initial state
   loadState(state: CubeState): void; // set cube to a new state, clear queue
@@ -92,6 +102,7 @@ export const RubiksCube = forwardRef<CubeHandle, Props>(
         isAnimating: !!animRef.current,
         queueLength: queueRef.current.length,
         currentMove: animRef.current?.move ?? null,
+        isUndo: !!animRef.current?.isUndo,
         history: [...historyRef.current],
         pending: [...queueRef.current],
       });
@@ -122,6 +133,31 @@ export const RubiksCube = forwardRef<CubeHandle, Props>(
       step() {
         stepModeRef.current = true;
         // If somehow paused mid-animation, let it finish first
+      },
+      stepBack() {
+        if (animRef.current || historyRef.current.length === 0) return;
+
+        const move = historyRef.current[historyRef.current.length - 1];
+        const inverse = invertMove(move);
+        queueRef.current.unshift(move);
+
+        const { axis, angle } = MOVE_ROTATION[inverse];
+        const baseDuration = inverse.endsWith("2")
+          ? QUARTER_TURN_DURATION * 2
+          : QUARTER_TURN_DURATION;
+        const duration = baseDuration / speedRef.current;
+
+        if (pivotRef.current) pivotRef.current.rotation.set(0, 0, 0);
+        animRef.current = {
+          move: inverse,
+          axis,
+          targetAngle: angle,
+          elapsed: 0,
+          duration,
+          isUndo: true,
+        };
+        setAnimMove(inverse);
+        notify();
       },
       setSpeed(n) {
         speedRef.current = n;
@@ -187,7 +223,11 @@ export const RubiksCube = forwardRef<CubeHandle, Props>(
       if (anim.elapsed >= anim.duration) {
         const newState = applyMove(displayStateRef.current, anim.move);
         displayStateRef.current = newState;
-        historyRef.current.push(anim.move);
+        if (anim.isUndo) {
+          historyRef.current.pop();
+        } else {
+          historyRef.current.push(anim.move);
+        }
 
         animRef.current = null;
 

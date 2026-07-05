@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, ContactShadows } from "@react-three/drei";
-import { Play, Pause, SkipForward, RotateCcw, Info, X } from "lucide-react";
+import { Play, Pause, SkipBack, SkipForward, RotateCcw, Info, X } from "lucide-react";
 import { RubiksCube, CubeHandle, PlaybackStatus } from "./RubiksCube";
 import { Button } from "@/components/ui/Button";
 import { parseMoveSequence } from "@/lib/cube/moves";
@@ -63,13 +63,24 @@ function MoveTape({ status }: { status: PlaybackStatus }) {
     });
   }, [doneCount, status.currentMove]);
 
-  const tokens: { move: MoveToken; state: "done" | "current" | "pending" }[] = [
-    ...status.history.map((m) => ({ move: m, state: "done" as const })),
-    ...(status.currentMove
-      ? [{ move: status.currentMove, state: "current" as const }]
-      : []),
-    ...status.pending.map((m) => ({ move: m, state: "pending" as const })),
-  ];
+  // While undoing, history's last token and pending's first token are the
+  // same move mid-flight (stepBack() unshifts it before the reverse
+  // animation completes) — collapse that pair into a single "current" token
+  // instead of showing it twice.
+  const tokens: { move: MoveToken; state: "done" | "current" | "pending" }[] =
+    status.isUndo
+      ? [
+          ...status.history.slice(0, -1).map((m) => ({ move: m, state: "done" as const })),
+          ...status.history.slice(-1).map((m) => ({ move: m, state: "current" as const })),
+          ...status.pending.slice(1).map((m) => ({ move: m, state: "pending" as const })),
+        ]
+      : [
+          ...status.history.map((m) => ({ move: m, state: "done" as const })),
+          ...(status.currentMove
+            ? [{ move: status.currentMove, state: "current" as const }]
+            : []),
+          ...status.pending.map((m) => ({ move: m, state: "pending" as const })),
+        ];
 
   if (tokens.length === 0) return null;
 
@@ -179,6 +190,7 @@ export function CubeScene({ cubeRef: externalRef, onStatusChange: onStatusChange
     isAnimating: false,
     queueLength: 0,
     currentMove: null,
+    isUndo: false,
     history: [],
     pending: [],
   });
@@ -278,6 +290,14 @@ export function CubeScene({ cubeRef: externalRef, onStatusChange: onStatusChange
               <Pause size={14} /> Pause
             </Button>
           )}
+
+          <Button
+            onClick={() => cubeRef.current?.stepBack()}
+            disabled={!status.paused || status.isAnimating || status.history.length === 0}
+            title="Undo the last move, then pause"
+          >
+            <SkipBack size={14} /> Back
+          </Button>
 
           <Button
             onClick={() => cubeRef.current?.step()}

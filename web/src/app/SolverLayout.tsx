@@ -8,10 +8,8 @@ import { CubeEntry, CubeEntryHandle } from "@/components/cube/CubeEntry";
 import { CubeErrorBoundary } from "@/components/cube/CubeErrorBoundary";
 import { PhotoScan } from "@/components/cube/PhotoScan";
 import { Button } from "@/components/ui/Button";
-import { parseMoveSequence } from "@/lib/cube/moves";
+import { generateScramble } from "@/lib/cube/moves";
 import { CubeState, FACE_IDS, SOLVED_STATE, COLOR_HEX } from "@/lib/cube/types";
-
-const SCRAMBLE = "R U R' F' R U R' U' R' F R2 U' R'";
 
 function isSolvedState(state: CubeState): boolean {
   return FACE_IDS.every((f) => state[f].every((c, i) => c === SOLVED_STATE[f][i]));
@@ -71,7 +69,7 @@ export function SolverLayout() {
 
   const handleScramble = () => {
     cubeRef.current?.loadState(SOLVED_STATE);
-    cubeRef.current?.queueMoves(parseMoveSequence(SCRAMBLE));
+    cubeRef.current?.queueMoves(generateScramble());
     setTab("manual");
   };
 
