@@ -49,15 +49,6 @@ class CubeState(BaseModel):
 # API request / response shapes
 # ---------------------------------------------------------------------------
 
-class UploadUrlRequest(BaseModel):
-    face_count: int = 6
-
-
-class UploadUrlResponse(BaseModel):
-    upload_urls: dict[str, str]   # face_id → presigned PUT url
-    image_keys: dict[str, str]    # face_id → storage key
-
-
 class AnalyzeRequest(BaseModel):
     image_keys: dict[str, str]    # face_id → storage key
 
