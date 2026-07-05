@@ -10,6 +10,8 @@ from app.jobs import store
 
 router = APIRouter(prefix="/analyze", tags=["analyze"])
 
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+
 
 def _run_analysis(job_id: str, image_paths: dict[str, str]) -> None:
     store.set_running(job_id)
@@ -63,9 +65,20 @@ async def analyze(
 
     image_paths: dict[str, str] = {}
     for face_id, file in files.items():
+        if file.size is not None and file.size > MAX_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File for face {face_id} exceeds the 10MB size limit",
+            )
+
         suffix = os.path.splitext(file.filename or "")[1] or ".jpg"
         dest = os.path.join(tmp_dir, f"{face_id}{suffix}")
         content = await file.read()
+        if file.size is None and len(content) > MAX_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File for face {face_id} exceeds the 10MB size limit",
+            )
         with open(dest, "wb") as f:
             f.write(content)
         image_paths[face_id] = dest
