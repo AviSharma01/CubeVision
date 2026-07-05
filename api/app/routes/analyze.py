@@ -62,11 +62,9 @@ async def analyze(
                 detail=f"File for face {face_id} is not an image (got {file.content_type})",
             )
 
-    job_id = store.create_job()
-    tmp_dir = os.path.join(tempfile.gettempdir(), "cubevision", job_id)
-    os.makedirs(tmp_dir, exist_ok=True)
-
-    image_paths: dict[str, str] = {}
+    # Validate all sizes before creating the job and temp dir so an oversized
+    # upload leaves no state behind
+    contents: dict[str, bytes] = {}
     for face_id, file in files.items():
         if file.size is not None and file.size > MAX_UPLOAD_BYTES:
             raise HTTPException(
@@ -74,14 +72,22 @@ async def analyze(
                 detail=f"File for face {face_id} exceeds the 10MB size limit",
             )
 
-        suffix = os.path.splitext(file.filename or "")[1] or ".jpg"
-        dest = os.path.join(tmp_dir, f"{face_id}{suffix}")
         content = await file.read()
-        if file.size is None and len(content) > MAX_UPLOAD_BYTES:
+        if len(content) > MAX_UPLOAD_BYTES:
             raise HTTPException(
                 status_code=413,
                 detail=f"File for face {face_id} exceeds the 10MB size limit",
             )
+        contents[face_id] = content
+
+    job_id = store.create_job()
+    tmp_dir = os.path.join(tempfile.gettempdir(), "cubevision", job_id)
+    os.makedirs(tmp_dir, exist_ok=True)
+
+    image_paths: dict[str, str] = {}
+    for face_id, content in contents.items():
+        suffix = os.path.splitext(files[face_id].filename or "")[1] or ".jpg"
+        dest = os.path.join(tmp_dir, f"{face_id}{suffix}")
         with open(dest, "wb") as f:
             f.write(content)
         image_paths[face_id] = dest

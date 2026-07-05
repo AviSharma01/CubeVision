@@ -3,6 +3,7 @@ from io import BytesIO
 from fastapi.testclient import TestClient
 from PIL import Image
 
+from app.jobs import store
 from app.main import app
 
 client = TestClient(app)
@@ -20,8 +21,10 @@ def test_oversized_upload_returns_413():
     small = png_bytes()
     files = {f: (f"{f}.png", small, "image/png") for f in FACES}
     files["U"] = ("U.jpg", b"\x00" * (10 * 1024 * 1024 + 1), "image/jpeg")
+    jobs_before = len(store._jobs)
     resp = client.post("/analyze", files=files)
     assert resp.status_code == 413
+    assert len(store._jobs) == jobs_before
 
 
 def test_valid_upload_returns_job_id():
