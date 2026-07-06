@@ -1,8 +1,10 @@
 // Tests for the LBL solver harness — run with: npx tsx src/lib/solver/solver.test.ts
-// No real stages exist yet; the harness is proven against fake stages.
+// The harness is proven against fake stages, then the real stages in STAGES
+// are fuzzed against random scrambles.
 import { applyMoves, generateScramble } from "../cube/moves";
 import { SOLVED_STATE, toKociembaString, CubeState, MoveSequence } from "../cube/types";
 import { solveLBL, STAGES } from "./index";
+import { whiteCross } from "./stages/whiteCross";
 import { SolverStage } from "./types";
 
 const SOLVED_KOC = toKociembaString(SOLVED_STATE);
@@ -132,12 +134,36 @@ assert(JSON.stringify(scrambled) === before, "solveLBL does not mutate its input
 // --- 6. Empty stage list is a no-op ---
 const emptyResult = solveLBL(scrambled, []);
 assert(emptyResult.stages.length === 0, "solveLBL with no stages returns empty result");
-assert(STAGES.length === 0, "STAGES starts empty (later sessions append)");
+assert(STAGES.length === 1 && STAGES[0] === whiteCross, "STAGES contains the white cross stage");
 
 // --- 7. Result structure carries names and segments through ---
 const result = solveLBL(scrambled, [spinStage]);
 assert(result.stages.length === 1, "result has one entry per stage");
 assert(result.stages[0].name === "spin", "result entry carries the stage name");
 assert(result.stages[0].segments[0].label === "sexy move", "result entry carries segment labels");
+
+// --- 8. White cross: isDone on the solved state, solve leaves input unmutated ---
+assert(whiteCross.isDone(SOLVED_STATE), "white cross isDone accepts the solved state");
+const crossInput = applyMoves(SOLVED_STATE, generateScramble());
+const crossInputBefore = JSON.stringify(crossInput);
+whiteCross.solve(crossInput);
+assert(JSON.stringify(crossInput) === crossInputBefore, "whiteCross.solve does not mutate its input state");
+
+// --- 9. Real stages survive 500 fuzzed scrambles ---
+fuzzSolver(STAGES, 500);
+assert(true, "real STAGES survive fuzzSolver over 500 scrambles");
+
+// --- 10. Sanity bound: white cross never exceeds 60 moves ---
+for (let i = 0; i < 500; i++) {
+  const scramble = generateScramble();
+  const segments = whiteCross.solve(applyMoves(SOLVED_STATE, scramble));
+  const moveCount = segments.reduce((n, seg) => n + seg.moves.length, 0);
+  if (moveCount > 60) {
+    throw new Error(
+      `FAIL: white cross took ${moveCount} moves on scramble "${scramble.join(" ")}"`
+    );
+  }
+}
+assert(true, "white cross stays within 60 moves across 500 scrambles");
 
 console.log("\nAll tests passed ✓");

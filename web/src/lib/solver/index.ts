@@ -1,5 +1,6 @@
 import { applyMoves } from "../cube/moves";
 import { CubeState } from "../cube/types";
+import { whiteCross } from "./stages/whiteCross";
 import { SolverStage, SolveResult } from "./types";
 
 // Runs stages in order, applying each stage's segment moves.
@@ -25,4 +26,4 @@ export function solveLBL(state: CubeState, stages: SolverStage[]): SolveResult {
 }
 
 // Layer-by-layer stages in solve order. Later sessions append to this.
-export const STAGES: SolverStage[] = [];
+export const STAGES: SolverStage[] = [whiteCross];
