@@ -9,7 +9,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx src/lib/cube/moves.test.ts"
+    "test": "tsx src/lib/cube/moves.test.ts && tsx src/lib/solver/solver.test.ts"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
