@@ -22,8 +22,38 @@ export const EDGE_SLOTS: readonly [StickerPos, StickerPos][] = [
   [["D", 7], ["B", 7]],
 ];
 
+// The 8 corner slots as sticker triples, derived from the same cycles: each
+// side face's index 0/2 borders U and 6/8 borders D (U_CYCLES/D_CYCLES row 0
+// and 2); which side stickers meet at a corner comes from the per-face cycle
+// rows that share a U or D sticker (e.g. R_CYCLES [F2, U2, B6, D2] and
+// B_CYCLES [U2, L0, D6, R8] both touch U2, so U2 meets B0 and R2).
+export const CORNER_SLOTS: readonly [StickerPos, StickerPos, StickerPos][] = [
+  [["U", 0], ["B", 2], ["L", 0]],
+  [["U", 2], ["B", 0], ["R", 2]],
+  [["U", 6], ["F", 0], ["L", 2]],
+  [["U", 8], ["F", 2], ["R", 0]],
+  [["D", 0], ["F", 6], ["L", 8]],
+  [["D", 2], ["F", 8], ["R", 6]],
+  [["D", 6], ["B", 8], ["L", 6]],
+  [["D", 8], ["B", 6], ["R", 8]],
+];
+
 export function getSticker(state: CubeState, [face, index]: StickerPos): Color {
   return state[face][index];
+}
+
+// Locates the corner colored {a, b, c} and returns its slot's sticker
+// positions (in CORNER_SLOTS order, not color order).
+export function findCornerSlot(
+  state: CubeState,
+  [a, b, c]: readonly [Color, Color, Color]
+): readonly [StickerPos, StickerPos, StickerPos] {
+  const wanted = [a, b, c].sort().join("");
+  for (const slot of CORNER_SLOTS) {
+    const colors = slot.map((pos) => getSticker(state, pos)).sort().join("");
+    if (colors === wanted) return slot;
+  }
+  throw new Error(`No ${a}/${b}/${c} corner found; invalid cube state`);
 }
 
 // Locates the edge colored {first, second} and returns the position of its

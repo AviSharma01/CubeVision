@@ -4,6 +4,7 @@
 import { applyMoves, generateScramble } from "../cube/moves";
 import { SOLVED_STATE, toKociembaString, CubeState, MoveSequence } from "../cube/types";
 import { solveLBL, STAGES } from "./index";
+import { firstCorners } from "./stages/firstCorners";
 import { whiteCross } from "./stages/whiteCross";
 import { SolverStage } from "./types";
 
@@ -134,7 +135,10 @@ assert(JSON.stringify(scrambled) === before, "solveLBL does not mutate its input
 // --- 6. Empty stage list is a no-op ---
 const emptyResult = solveLBL(scrambled, []);
 assert(emptyResult.stages.length === 0, "solveLBL with no stages returns empty result");
-assert(STAGES.length === 1 && STAGES[0] === whiteCross, "STAGES contains the white cross stage");
+assert(
+  STAGES.length === 2 && STAGES[0] === whiteCross && STAGES[1] === firstCorners,
+  "STAGES contains white cross then first-layer corners"
+);
 
 // --- 7. Result structure carries names and segments through ---
 const result = solveLBL(scrambled, [spinStage]);
@@ -148,6 +152,18 @@ const crossInput = applyMoves(SOLVED_STATE, generateScramble());
 const crossInputBefore = JSON.stringify(crossInput);
 whiteCross.solve(crossInput);
 assert(JSON.stringify(crossInput) === crossInputBefore, "whiteCross.solve does not mutate its input state");
+
+// --- 8b. First-layer corners: isDone semantics and input purity ---
+assert(firstCorners.isDone(SOLVED_STATE), "first corners isDone accepts the solved state");
+// One sexy move from solved keeps the cross intact but swaps a D-layer corner
+// into the U8/F2/R0 slot, so only the corner predicate must fail.
+const cornerBroken = applyMoves(SOLVED_STATE, ["R'", "D", "R", "D'"]);
+assert(whiteCross.isDone(cornerBroken), "one sexy move from solved leaves the cross intact");
+assert(!firstCorners.isDone(cornerBroken), "first corners isDone rejects a swapped-out corner");
+const cornersInput = applyMoves(SOLVED_STATE, generateScramble());
+const cornersInputBefore = JSON.stringify(cornersInput);
+firstCorners.solve(cornersInput);
+assert(JSON.stringify(cornersInput) === cornersInputBefore, "firstCorners.solve does not mutate its input state");
 
 // --- 9. Real stages survive 500 fuzzed scrambles ---
 fuzzSolver(STAGES, 500);
@@ -165,5 +181,20 @@ for (let i = 0; i < 500; i++) {
   }
 }
 assert(true, "white cross stays within 60 moves across 500 scrambles");
+
+// --- 11. Sanity bound: cross + corners never exceed 120 moves ---
+for (let i = 0; i < 500; i++) {
+  const scramble = generateScramble();
+  const result = solveLBL(applyMoves(SOLVED_STATE, scramble), STAGES);
+  const moveCount = result.stages
+    .flatMap((stage) => stage.segments)
+    .reduce((n, seg) => n + seg.moves.length, 0);
+  if (moveCount > 120) {
+    throw new Error(
+      `FAIL: cross + corners took ${moveCount} moves on scramble "${scramble.join(" ")}"`
+    );
+  }
+}
+assert(true, "cross + corners stay within 120 moves across 500 scrambles");
 
 console.log("\nAll tests passed ✓");
