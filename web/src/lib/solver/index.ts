@@ -1,6 +1,7 @@
 import { applyMoves } from "../cube/moves";
 import { CubeState } from "../cube/types";
 import { firstCorners } from "./stages/firstCorners";
+import { secondLayer } from "./stages/secondLayer";
 import { whiteCross } from "./stages/whiteCross";
 import { SolverStage, SolveResult } from "./types";
 
@@ -27,4 +28,4 @@ export function solveLBL(state: CubeState, stages: SolverStage[]): SolveResult {
 }
 
 // Layer-by-layer stages in solve order. Later sessions append to this.
-export const STAGES: SolverStage[] = [whiteCross, firstCorners];
+export const STAGES: SolverStage[] = [whiteCross, firstCorners, secondLayer];

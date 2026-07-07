@@ -5,6 +5,7 @@ import { applyMoves, generateScramble } from "../cube/moves";
 import { SOLVED_STATE, toKociembaString, CubeState, MoveSequence } from "../cube/types";
 import { solveLBL, STAGES } from "./index";
 import { firstCorners } from "./stages/firstCorners";
+import { secondLayer } from "./stages/secondLayer";
 import { whiteCross } from "./stages/whiteCross";
 import { SolverStage } from "./types";
 
@@ -136,8 +137,11 @@ assert(JSON.stringify(scrambled) === before, "solveLBL does not mutate its input
 const emptyResult = solveLBL(scrambled, []);
 assert(emptyResult.stages.length === 0, "solveLBL with no stages returns empty result");
 assert(
-  STAGES.length === 2 && STAGES[0] === whiteCross && STAGES[1] === firstCorners,
-  "STAGES contains white cross then first-layer corners"
+  STAGES.length === 3 &&
+    STAGES[0] === whiteCross &&
+    STAGES[1] === firstCorners &&
+    STAGES[2] === secondLayer,
+  "STAGES contains white cross, first-layer corners, then second-layer edges"
 );
 
 // --- 7. Result structure carries names and segments through ---
@@ -165,6 +169,26 @@ const cornersInputBefore = JSON.stringify(cornersInput);
 firstCorners.solve(cornersInput);
 assert(JSON.stringify(cornersInput) === cornersInputBefore, "firstCorners.solve does not mutate its input state");
 
+// --- 8c. Second layer: isDone semantics and input purity ---
+assert(secondLayer.isDone(SOLVED_STATE), "second layer isDone accepts the solved state");
+// Inverse of the FR right insertion (D R' D' R D' F D F') pulls the green-red
+// edge out to the DF slot, leaving the first layer intact: one insertion away.
+const edgeOut = applyMoves(SOLVED_STATE, ["F", "D'", "F'", "D", "R'", "D", "R", "D'"]);
+assert(firstCorners.isDone(edgeOut), "pulling one middle edge leaves the first layer intact");
+assert(!secondLayer.isDone(edgeOut), "second layer isDone rejects a pulled-out middle edge");
+const reinserted = applyMoves(edgeOut, ["D", "R'", "D'", "R", "D'", "F", "D", "F'"]);
+assert(secondLayer.isDone(reinserted), "one right insertion seats the edge and isDone flips");
+// Purity, on a first-layer-solved state (secondLayer.solve assumes prior stages ran).
+let secondInput = applyMoves(SOLVED_STATE, generateScramble());
+for (const stage of solveLBL(secondInput, [whiteCross, firstCorners]).stages) {
+  for (const segment of stage.segments) {
+    secondInput = applyMoves(secondInput, segment.moves);
+  }
+}
+const secondInputBefore = JSON.stringify(secondInput);
+secondLayer.solve(secondInput);
+assert(JSON.stringify(secondInput) === secondInputBefore, "secondLayer.solve does not mutate its input state");
+
 // --- 9. Real stages survive 500 fuzzed scrambles ---
 fuzzSolver(STAGES, 500);
 assert(true, "real STAGES survive fuzzSolver over 500 scrambles");
@@ -185,7 +209,7 @@ assert(true, "white cross stays within 60 moves across 500 scrambles");
 // --- 11. Sanity bound: cross + corners never exceed 120 moves ---
 for (let i = 0; i < 500; i++) {
   const scramble = generateScramble();
-  const result = solveLBL(applyMoves(SOLVED_STATE, scramble), STAGES);
+  const result = solveLBL(applyMoves(SOLVED_STATE, scramble), [whiteCross, firstCorners]);
   const moveCount = result.stages
     .flatMap((stage) => stage.segments)
     .reduce((n, seg) => n + seg.moves.length, 0);
@@ -196,5 +220,20 @@ for (let i = 0; i < 500; i++) {
   }
 }
 assert(true, "cross + corners stay within 120 moves across 500 scrambles");
+
+// --- 12. Sanity bound: all three stages never exceed 200 moves ---
+for (let i = 0; i < 500; i++) {
+  const scramble = generateScramble();
+  const result = solveLBL(applyMoves(SOLVED_STATE, scramble), STAGES);
+  const moveCount = result.stages
+    .flatMap((stage) => stage.segments)
+    .reduce((n, seg) => n + seg.moves.length, 0);
+  if (moveCount > 200) {
+    throw new Error(
+      `FAIL: three stages took ${moveCount} moves on scramble "${scramble.join(" ")}"`
+    );
+  }
+}
+assert(true, "cross + corners + second layer stay within 200 moves across 500 scrambles");
 
 console.log("\nAll tests passed ✓");

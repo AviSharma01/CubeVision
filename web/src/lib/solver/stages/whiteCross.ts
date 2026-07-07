@@ -12,7 +12,7 @@
 import { applyMoves } from "../../cube/moves";
 import { Color, CubeState, FaceId, MoveToken } from "../../cube/types";
 import { SolverSegment, SolverStage } from "../types";
-import { alignD, findEdgeSticker } from "../util";
+import { alignD, D_SLOT, findEdgeSticker } from "../util";
 
 // The four cross edges: white paired with each side color, and the face that
 // color belongs to (fixed orientation: G on F, R on R, B on B, O on L).
@@ -22,9 +22,6 @@ const CROSS_EDGES: { color: Color; face: FaceId; name: string }[] = [
   { color: "B", face: "B", name: "white-blue" },
   { color: "O", face: "L", name: "white-orange" },
 ];
-
-// The D-face edge slot adjacent to each side face (from D_CYCLES in moves.ts).
-const D_SLOT: Record<string, number> = { F: 1, R: 5, B: 7, L: 3 };
 
 // Daisy step for each white-sticker position (keyed "<face><index>"): the turn
 // that makes progress toward white-on-D, and the one D edge slot that turn

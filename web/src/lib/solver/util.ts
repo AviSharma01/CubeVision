@@ -38,6 +38,9 @@ export const CORNER_SLOTS: readonly [StickerPos, StickerPos, StickerPos][] = [
   [["D", 8], ["B", 6], ["R", 8]],
 ];
 
+// The D-face edge slot adjacent to each side face (from D_CYCLES in moves.ts).
+export const D_SLOT: Record<string, number> = { F: 1, R: 5, B: 7, L: 3 };
+
 export function getSticker(state: CubeState, [face, index]: StickerPos): Color {
   return state[face][index];
 }
