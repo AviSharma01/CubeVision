@@ -2,6 +2,8 @@ import { applyMoves } from "../cube/moves";
 import { CubeState } from "../cube/types";
 import { firstCorners } from "./stages/firstCorners";
 import { orientCorners } from "./stages/orientCorners";
+import { permuteCorners } from "./stages/permuteCorners";
+import { permuteEdges } from "./stages/permuteEdges";
 import { secondLayer } from "./stages/secondLayer";
 import { whiteCross } from "./stages/whiteCross";
 import { yellowCross } from "./stages/yellowCross";
@@ -36,4 +38,6 @@ export const STAGES: SolverStage[] = [
   secondLayer,
   yellowCross,
   orientCorners,
+  permuteCorners,
+  permuteEdges,
 ];

@@ -6,6 +6,8 @@ import { SOLVED_STATE, toKociembaString, CubeState, MoveSequence } from "../cube
 import { solveLBL, STAGES } from "./index";
 import { firstCorners } from "./stages/firstCorners";
 import { orientCorners } from "./stages/orientCorners";
+import { permuteCorners } from "./stages/permuteCorners";
+import { permuteEdges } from "./stages/permuteEdges";
 import { secondLayer } from "./stages/secondLayer";
 import { whiteCross } from "./stages/whiteCross";
 import { yellowCross } from "./stages/yellowCross";
@@ -139,13 +141,15 @@ assert(JSON.stringify(scrambled) === before, "solveLBL does not mutate its input
 const emptyResult = solveLBL(scrambled, []);
 assert(emptyResult.stages.length === 0, "solveLBL with no stages returns empty result");
 assert(
-  STAGES.length === 5 &&
+  STAGES.length === 7 &&
     STAGES[0] === whiteCross &&
     STAGES[1] === firstCorners &&
     STAGES[2] === secondLayer &&
     STAGES[3] === yellowCross &&
-    STAGES[4] === orientCorners,
-  "STAGES contains cross, corners, second layer, yellow cross, then yellow corners"
+    STAGES[4] === orientCorners &&
+    STAGES[5] === permuteCorners &&
+    STAGES[6] === permuteEdges,
+  "STAGES contains all seven layer-by-layer stages in solve order"
 );
 
 // --- 7. Result structure carries names and segments through ---
@@ -224,9 +228,56 @@ const suneStateBefore = JSON.stringify(suneState);
 orientCorners.solve(suneState);
 assert(JSON.stringify(suneState) === suneStateBefore, "orientCorners.solve does not mutate its input state");
 
-// --- 9. Real stages survive 500 fuzzed scrambles ---
+// --- 8f. Corner permutation: isDone semantics and input purity ---
+assert(permuteCorners.isDone(SOLVED_STATE), "corner permutation isDone accepts the solved state");
+// Undoing the corner 3-cycle (R F' R B2 R' F R B2 R2) from solved leaves
+// orientation intact but displaces three corners: one application from done.
+const cornersOut = applyMoves(SOLVED_STATE, ["R2", "B2", "R'", "F'", "R", "B2", "R'", "F", "R'"]);
+assert(orientCorners.isDone(cornersOut), "undoing the corner 3-cycle keeps all corners oriented");
+assert(!permuteCorners.isDone(cornersOut), "corner permutation isDone rejects displaced corners");
+assert(
+  permuteCorners.isDone(applyMoves(cornersOut, ["R", "F'", "R", "B2", "R'", "F", "R", "B2", "R2"])),
+  "one corner 3-cycle places the corners and isDone flips"
+);
+const cornersOutBefore = JSON.stringify(cornersOut);
+permuteCorners.solve(cornersOut);
+assert(JSON.stringify(cornersOut) === cornersOutBefore, "permuteCorners.solve does not mutate its input state");
+
+// --- 8g. Edge permutation: isDone semantics, final alignment, input purity ---
+assert(permuteEdges.isDone(SOLVED_STATE), "edge permutation isDone accepts the solved state");
+// Undoing the edge 3-cycle (F2 D L' R F2 L R' D F2) from solved leaves the
+// corners placed but displaces three edges: one application from done.
+const edgesOut = applyMoves(SOLVED_STATE, ["F2", "D'", "R", "L'", "F2", "R'", "L", "D'", "F2"]);
+assert(permuteCorners.isDone(edgesOut), "undoing the edge 3-cycle keeps the corners placed");
+assert(!permuteEdges.isDone(edgesOut), "edge permutation isDone rejects displaced edges");
+assert(
+  permuteEdges.isDone(applyMoves(edgesOut, ["F2", "D", "L'", "R", "F2", "L", "R'", "D", "F2"])),
+  "one edge 3-cycle restores the solved state and isDone flips"
+);
+// A pure D offset passes every earlier predicate; only the final alignment
+// segment brings it home.
+const dOffset = applyMoves(SOLVED_STATE, ["D"]);
+assert(permuteCorners.isDone(dOffset), "a lone D turn keeps every D-invariant predicate");
+assert(!permuteEdges.isDone(dOffset), "edge permutation isDone rejects a rotated last layer");
+const dOffsetSegments = permuteEdges.solve(dOffset);
+assert(
+  dOffsetSegments.length === 1 && dOffsetSegments[0].label === "Align the final layer",
+  "a rotated last layer needs only the final alignment segment"
+);
+assert(
+  permuteEdges.isDone(applyMoves(dOffset, dOffsetSegments[0].moves)),
+  "the final alignment segment solves the rotated last layer"
+);
+const edgesOutBefore = JSON.stringify(edgesOut);
+permuteEdges.solve(edgesOut);
+assert(JSON.stringify(edgesOut) === edgesOutBefore, "permuteEdges.solve does not mutate its input state");
+
+// --- 9. Milestone: 500 fuzzed scrambles fully solved ---
+// Stage 7's predicate is deep equality with SOLVED_STATE, so this run
+// proves 500 random scrambles solve completely with every intermediate
+// stage invariant held at each boundary.
 fuzzSolver(STAGES, 500);
-assert(true, "real STAGES survive fuzzSolver over 500 scrambles");
+assert(true, "all seven STAGES fully solve 500 fuzzed scrambles");
 
 // --- 10. Sanity bound: white cross never exceeds 60 moves ---
 for (let i = 0; i < 500; i++) {
@@ -275,10 +326,16 @@ for (let i = 0; i < 500; i++) {
 }
 assert(true, "cross + corners + second layer stay within 200 moves across 500 scrambles");
 
-// --- 13. Sanity bound: all five stages never exceed 320 moves ---
+// --- 13. Sanity bound: the first five stages never exceed 320 moves ---
 for (let i = 0; i < 500; i++) {
   const scramble = generateScramble();
-  const result = solveLBL(applyMoves(SOLVED_STATE, scramble), STAGES);
+  const result = solveLBL(applyMoves(SOLVED_STATE, scramble), [
+    whiteCross,
+    firstCorners,
+    secondLayer,
+    yellowCross,
+    orientCorners,
+  ]);
   const moveCount = result.stages
     .flatMap((stage) => stage.segments)
     .reduce((n, seg) => n + seg.moves.length, 0);
@@ -288,6 +345,28 @@ for (let i = 0; i < 500; i++) {
     );
   }
 }
-assert(true, "all five stages stay within 320 moves across 500 scrambles");
+assert(true, "the first five stages stay within 320 moves across 500 scrambles");
+
+// --- 14. Sanity bound: a complete solve never exceeds 420 moves ---
+let solveMax = 0;
+let solveSum = 0;
+for (let i = 0; i < 500; i++) {
+  const scramble = generateScramble();
+  const result = solveLBL(applyMoves(SOLVED_STATE, scramble), STAGES);
+  const moveCount = result.stages
+    .flatMap((stage) => stage.segments)
+    .reduce((n, seg) => n + seg.moves.length, 0);
+  if (moveCount > 420) {
+    throw new Error(
+      `FAIL: complete solve took ${moveCount} moves on scramble "${scramble.join(" ")}"`
+    );
+  }
+  solveMax = Math.max(solveMax, moveCount);
+  solveSum += moveCount;
+}
+console.log(
+  `  INFO: complete solve over 500 scrambles: avg ${(solveSum / 500).toFixed(1)} moves, max ${solveMax}`
+);
+assert(true, "a complete solve stays within 420 moves across 500 scrambles");
 
 console.log("\nAll tests passed ✓");
