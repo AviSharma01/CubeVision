@@ -5,8 +5,10 @@ import { applyMoves, generateScramble } from "../cube/moves";
 import { SOLVED_STATE, toKociembaString, CubeState, MoveSequence } from "../cube/types";
 import { solveLBL, STAGES } from "./index";
 import { firstCorners } from "./stages/firstCorners";
+import { orientCorners } from "./stages/orientCorners";
 import { secondLayer } from "./stages/secondLayer";
 import { whiteCross } from "./stages/whiteCross";
+import { yellowCross } from "./stages/yellowCross";
 import { SolverStage } from "./types";
 
 const SOLVED_KOC = toKociembaString(SOLVED_STATE);
@@ -137,11 +139,13 @@ assert(JSON.stringify(scrambled) === before, "solveLBL does not mutate its input
 const emptyResult = solveLBL(scrambled, []);
 assert(emptyResult.stages.length === 0, "solveLBL with no stages returns empty result");
 assert(
-  STAGES.length === 3 &&
+  STAGES.length === 5 &&
     STAGES[0] === whiteCross &&
     STAGES[1] === firstCorners &&
-    STAGES[2] === secondLayer,
-  "STAGES contains white cross, first-layer corners, then second-layer edges"
+    STAGES[2] === secondLayer &&
+    STAGES[3] === yellowCross &&
+    STAGES[4] === orientCorners,
+  "STAGES contains cross, corners, second layer, yellow cross, then yellow corners"
 );
 
 // --- 7. Result structure carries names and segments through ---
@@ -189,6 +193,37 @@ const secondInputBefore = JSON.stringify(secondInput);
 secondLayer.solve(secondInput);
 assert(JSON.stringify(secondInput) === secondInputBefore, "secondLayer.solve does not mutate its input state");
 
+// --- 8d. Yellow cross: isDone semantics and input purity ---
+assert(yellowCross.isDone(SOLVED_STATE), "yellow cross isDone accepts the solved state");
+// Undoing the cross algorithm (F' R' D R D' F) from solved leaves the first
+// two layers intact but breaks two D edges: one application from done.
+const lineState = applyMoves(SOLVED_STATE, ["F'", "D", "R'", "D'", "R", "F"]);
+assert(secondLayer.isDone(lineState), "undoing the cross algorithm leaves the first two layers intact");
+assert(!yellowCross.isDone(lineState), "yellow cross isDone rejects unoriented D edges");
+assert(
+  yellowCross.isDone(applyMoves(lineState, ["F'", "R'", "D", "R", "D'", "F"])),
+  "one cross application re-forms the yellow cross and isDone flips"
+);
+const lineStateBefore = JSON.stringify(lineState);
+yellowCross.solve(lineState);
+assert(JSON.stringify(lineState) === lineStateBefore, "yellowCross.solve does not mutate its input state");
+
+// --- 8e. Yellow corners: isDone semantics and input purity ---
+assert(orientCorners.isDone(SOLVED_STATE), "yellow corners isDone accepts the solved state");
+// App-token Sune (textbook R U R' U R U2 R') twists three D corners while
+// keeping the first two layers and the yellow cross intact.
+const suneState = applyMoves(SOLVED_STATE, ["R'", "D", "R", "D", "R'", "D2", "R"]);
+assert(yellowCross.isDone(suneState), "Sune leaves the yellow cross intact");
+assert(!orientCorners.isDone(suneState), "yellow corners isDone rejects twisted corners");
+let suneFixed = suneState;
+for (const segment of orientCorners.solve(suneState)) {
+  suneFixed = applyMoves(suneFixed, segment.moves);
+}
+assert(orientCorners.isDone(suneFixed), "yellow corners stage orients a Sune-twisted last layer");
+const suneStateBefore = JSON.stringify(suneState);
+orientCorners.solve(suneState);
+assert(JSON.stringify(suneState) === suneStateBefore, "orientCorners.solve does not mutate its input state");
+
 // --- 9. Real stages survive 500 fuzzed scrambles ---
 fuzzSolver(STAGES, 500);
 assert(true, "real STAGES survive fuzzSolver over 500 scrambles");
@@ -221,10 +256,14 @@ for (let i = 0; i < 500; i++) {
 }
 assert(true, "cross + corners stay within 120 moves across 500 scrambles");
 
-// --- 12. Sanity bound: all three stages never exceed 200 moves ---
+// --- 12. Sanity bound: the first three stages never exceed 200 moves ---
 for (let i = 0; i < 500; i++) {
   const scramble = generateScramble();
-  const result = solveLBL(applyMoves(SOLVED_STATE, scramble), STAGES);
+  const result = solveLBL(applyMoves(SOLVED_STATE, scramble), [
+    whiteCross,
+    firstCorners,
+    secondLayer,
+  ]);
   const moveCount = result.stages
     .flatMap((stage) => stage.segments)
     .reduce((n, seg) => n + seg.moves.length, 0);
@@ -235,5 +274,20 @@ for (let i = 0; i < 500; i++) {
   }
 }
 assert(true, "cross + corners + second layer stay within 200 moves across 500 scrambles");
+
+// --- 13. Sanity bound: all five stages never exceed 320 moves ---
+for (let i = 0; i < 500; i++) {
+  const scramble = generateScramble();
+  const result = solveLBL(applyMoves(SOLVED_STATE, scramble), STAGES);
+  const moveCount = result.stages
+    .flatMap((stage) => stage.segments)
+    .reduce((n, seg) => n + seg.moves.length, 0);
+  if (moveCount > 320) {
+    throw new Error(
+      `FAIL: five stages took ${moveCount} moves on scramble "${scramble.join(" ")}"`
+    );
+  }
+}
+assert(true, "all five stages stay within 320 moves across 500 scrambles");
 
 console.log("\nAll tests passed ✓");
