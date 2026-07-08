@@ -2,8 +2,9 @@
 // The harness is proven against fake stages, then the real stages in STAGES
 // are fuzzed against random scrambles.
 import { applyMoves, generateScramble } from "../cube/moves";
-import { SOLVED_STATE, toKociembaString, CubeState, MoveSequence } from "../cube/types";
+import { SOLVED_STATE, toKociembaString, CubeState, MoveSequence, MoveToken } from "../cube/types";
 import { solveLBL, STAGES } from "./index";
+import { flattenResult, mergeSegments } from "./merge";
 import { firstCorners } from "./stages/firstCorners";
 import { orientCorners } from "./stages/orientCorners";
 import { permuteCorners } from "./stages/permuteCorners";
@@ -11,7 +12,7 @@ import { permuteEdges } from "./stages/permuteEdges";
 import { secondLayer } from "./stages/secondLayer";
 import { whiteCross } from "./stages/whiteCross";
 import { yellowCross } from "./stages/yellowCross";
-import { SolverStage } from "./types";
+import { SolveResult, SolverSegment, SolverStage } from "./types";
 
 const SOLVED_KOC = toKociembaString(SOLVED_STATE);
 
@@ -164,6 +165,24 @@ const crossInput = applyMoves(SOLVED_STATE, generateScramble());
 const crossInputBefore = JSON.stringify(crossInput);
 whiteCross.solve(crossInput);
 assert(JSON.stringify(crossInput) === crossInputBefore, "whiteCross.solve does not mutate its input state");
+
+// --- 8a. White cross: already-seated edges are skipped, not reinserted ---
+assert(
+  whiteCross.solve(SOLVED_STATE).length === 0,
+  "white cross emits no segments when all four edges are seated"
+);
+// R2 from solved displaces only the white-red edge (to D5/R7, white on D);
+// the other three stay seated, so the solve is a single insertion.
+const oneEdgeOut = applyMoves(SOLVED_STATE, ["R2"]);
+const oneEdgeSegments = whiteCross.solve(oneEdgeOut);
+assert(
+  oneEdgeSegments.length === 1 && oneEdgeSegments[0].label === "Insert white-red edge",
+  "one displaced edge yields only its own insertion segment"
+);
+assert(
+  whiteCross.isDone(applyMoves(oneEdgeOut, oneEdgeSegments[0].moves)),
+  "the single insertion segment restores the white cross"
+);
 
 // --- 8b. First-layer corners: isDone semantics and input purity ---
 assert(firstCorners.isDone(SOLVED_STATE), "first corners isDone accepts the solved state");
@@ -368,5 +387,140 @@ console.log(
   `  INFO: complete solve over 500 scrambles: avg ${(solveSum / 500).toFixed(1)} moves, max ${solveMax}`
 );
 assert(true, "a complete solve stays within 420 moves across 500 scrambles");
+
+// --- 15. mergeSegments: pair rules, chains, boundaries, dropping, purity ---
+// All nine same-face pair combinations reduce by summed quarter turns mod 4.
+const PAIR_CASES: [MoveToken[], MoveToken[]][] = [
+  [["R", "R"], ["R2"]],
+  [["R", "R'"], []],
+  [["R", "R2"], ["R'"]],
+  [["R'", "R"], []],
+  [["R'", "R'"], ["R2"]],
+  [["R'", "R2"], ["R"]],
+  [["R2", "R"], ["R'"]],
+  [["R2", "R'"], ["R"]],
+  [["R2", "R2"], []],
+];
+for (const [input, expected] of PAIR_CASES) {
+  const out = mergeSegments([{ label: "pair", moves: input }]);
+  const got = out.length === 0 ? [] : out[0].moves;
+  if (got.join(" ") !== expected.join(" ")) {
+    throw new Error(
+      `FAIL: mergeSegments([${input.join(" ")}]) gave "${got.join(" ")}", expected "${expected.join(" ")}"`
+    );
+  }
+}
+assert(true, "mergeSegments applies all nine same-face pair rules");
+assert(
+  mergeSegments([{ label: "quad", moves: ["R", "R", "R", "R"] }]).length === 0,
+  "R R R R merges to nothing and the emptied segment is dropped"
+);
+// Cancelling the inner pair must make the outer moves adjacent and merge too.
+const cascade = mergeSegments([{ label: "cascade", moves: ["F", "R", "R'", "F"] }]);
+assert(
+  cascade.length === 1 && cascade[0].moves.join(" ") === "F2",
+  "cancelling an inner pair cascades into merging the moves around it"
+);
+const different = mergeSegments([{ label: "keep", moves: ["R", "D", "R'"] }]);
+assert(
+  different.length === 1 && different[0].moves.join(" ") === "R D R'",
+  "different-face neighbors are left alone"
+);
+// Same-face moves on either side of a segment boundary must both survive.
+const boundary = mergeSegments([
+  { label: "first", moves: ["R", "D"] },
+  { label: "second", moves: ["D'", "F"] },
+]);
+assert(
+  boundary.length === 2 &&
+    boundary[0].moves.join(" ") === "R D" &&
+    boundary[1].moves.join(" ") === "D' F",
+  "moves are never merged across a segment boundary"
+);
+assert(
+  mergeSegments([{ label: "empty", moves: [] }]).length === 0,
+  "a segment with no moves is dropped"
+);
+const mergeInput: SolverSegment[] = [
+  { label: "a", moves: ["R", "R"] },
+  { label: "b", moves: [] },
+];
+const mergeInputBefore = JSON.stringify(mergeInput);
+mergeSegments(mergeInput);
+assert(
+  JSON.stringify(mergeInput) === mergeInputBefore,
+  "mergeSegments does not mutate its input segments"
+);
+
+// --- 16. flattenResult: merged moves with per-move stage/label annotations ---
+const fakeResult: SolveResult = {
+  stages: [
+    {
+      name: "stage-one",
+      segments: [
+        { label: "seg-a", moves: ["R", "R"] },
+        { label: "seg-b", moves: ["U", "U'"] },
+      ],
+    },
+    { name: "stage-two", segments: [{ label: "seg-c", moves: ["F", "D"] }] },
+  ],
+};
+const flat = flattenResult(fakeResult);
+assert(
+  flat.moves.join(" ") === "R2 F D",
+  "flattenResult merges each stage's segments before flattening"
+);
+assert(
+  flat.moves.length === flat.annotations.length,
+  "flattenResult returns equal-length moves and annotations"
+);
+assert(
+  flat.annotations[0].stage === "stage-one" && flat.annotations[0].label === "seg-a",
+  "the first move is annotated with its stage and segment label"
+);
+assert(
+  flat.annotations[1].stage === "stage-two" &&
+    flat.annotations[1].label === "seg-c" &&
+    flat.annotations[2].label === "seg-c",
+  "annotations switch stage and label exactly at the segment boundary"
+);
+
+// --- 17. Equivalence fuzz: merged flat moves reach the identical end state ---
+// The property that makes merging safe for playback: over 200 scrambles the
+// merged flattened moves and the raw segment moves land on byte-identical
+// states, with the moves/annotations length invariant held throughout.
+let unmergedSum = 0;
+let unmergedMax = 0;
+let mergedSum = 0;
+let mergedMax = 0;
+for (let i = 0; i < 200; i++) {
+  const scramble = generateScramble();
+  const start = applyMoves(SOLVED_STATE, scramble);
+  const solveResult = solveLBL(start, STAGES);
+  const unmerged = solveResult.stages
+    .flatMap((stage) => stage.segments)
+    .flatMap((segment) => segment.moves);
+  const { moves, annotations } = flattenResult(solveResult);
+  if (moves.length !== annotations.length) {
+    throw new Error(
+      `FAIL: moves/annotations length mismatch on scramble "${scramble.join(" ")}"`
+    );
+  }
+  const unmergedEnd = JSON.stringify(applyMoves(start, unmerged));
+  const mergedEnd = JSON.stringify(applyMoves(start, moves));
+  if (mergedEnd !== unmergedEnd) {
+    throw new Error(
+      `FAIL: merged moves diverge from unmerged on scramble "${scramble.join(" ")}"`
+    );
+  }
+  unmergedSum += unmerged.length;
+  unmergedMax = Math.max(unmergedMax, unmerged.length);
+  mergedSum += moves.length;
+  mergedMax = Math.max(mergedMax, moves.length);
+}
+console.log(
+  `  INFO: solve length over 200 scrambles: unmerged avg ${(unmergedSum / 200).toFixed(1)} max ${unmergedMax}, merged avg ${(mergedSum / 200).toFixed(1)} max ${mergedMax}`
+);
+assert(true, "merged flattened moves match unmerged end states across 200 scrambles");
 
 console.log("\nAll tests passed ✓");

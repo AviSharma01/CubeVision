@@ -9,6 +9,14 @@
 // knock an already-parked edge off the D face. Insertions touch only their own
 // face's U and D edge slots, so they cannot disturb earlier insertions or the
 // remaining daisy edges.
+//
+// Edges already seated (white in their U slot, side sticker on its center) are
+// skipped in both phases. A daisy step for one edge can turn a seated edge's
+// face and knock it out of U (only edges on D are protected), so phase 1
+// repeats its scan until every edge is seated or parked on D: a knocked-out
+// edge is daisied on a later pass, and once on D it can no longer be
+// disturbed, so each edge is daisied at most once. Phase 2 insertions turn
+// only their own face and D, which cannot reach another seated edge.
 import { applyMoves } from "../../cube/moves";
 import { Color, CubeState, FaceId, MoveToken } from "../../cube/types";
 import { SolverSegment, SolverStage } from "../types";
@@ -60,6 +68,22 @@ const DAISY_STEPS: Record<string, { move: MoveToken; protect: number }> = {
 
 const DAISY_STEP_CAP = 8;
 
+// The U-face edge slot adjacent to each side face (from U_CYCLES in moves.ts).
+const U_SLOT: Record<string, number> = { F: 7, R: 5, B: 1, L: 3 };
+
+// A cross edge counts as seated when its white sticker fills its U slot and
+// its side sticker sits on its own center.
+function isSeated(
+  state: CubeState,
+  edge: { color: Color; face: FaceId }
+): boolean {
+  return state.U[U_SLOT[edge.face]] === "W" && state[edge.face][1] === edge.color;
+}
+
+// Phase 1 parks at least one edge per pass and a parked edge stays parked, so
+// four passes always suffice; a fifth pass means the reasoning above is wrong.
+const DAISY_PASS_CAP = 4;
+
 export const whiteCross: SolverStage = {
   name: "White cross",
 
@@ -80,44 +104,61 @@ export const whiteCross: SolverStage = {
     const segments: SolverSegment[] = [];
     let current = state;
 
-    // Phase 1: daisy — every white edge onto the D face, white facing D.
-    for (const { color, name } of CROSS_EDGES) {
-      const moves: MoveToken[] = [];
-      for (let step = 0; ; step++) {
-        const [face, index] = findEdgeSticker(current, "W", color);
-        if (face === "D") break;
-        if (step >= DAISY_STEP_CAP) {
-          throw new Error(
-            `White cross: ${name} edge did not reach the bottom layer within ${DAISY_STEP_CAP} steps`
-          );
-        }
-        const rule = DAISY_STEPS[`${face}${index}`];
-        if (!rule) {
-          throw new Error(
-            `White cross: no daisy step for white sticker at ${face}[${index}]`
-          );
-        }
-        const stepMoves = [
-          ...alignD(
-            current,
-            (s) => s.D[rule.protect] !== "W",
-            `clear bottom slot D[${rule.protect}] for the ${name} edge`
-          ),
-          rule.move,
-        ];
-        current = applyMoves(current, stepMoves);
-        moves.push(...stepMoves);
+    // Phase 1: daisy — every white edge onto the D face, white facing D,
+    // except edges already seated. Repeats until each edge is seated or
+    // parked, since daisying one edge can knock a seated one out of U.
+    const phase1Done = (s: CubeState) =>
+      CROSS_EDGES.every(
+        (edge) => isSeated(s, edge) || findEdgeSticker(s, "W", edge.color)[0] === "D"
+      );
+    for (let pass = 0; !phase1Done(current); pass++) {
+      if (pass >= DAISY_PASS_CAP) {
+        throw new Error(
+          `White cross: edges not all seated or parked within ${DAISY_PASS_CAP} daisy passes`
+        );
       }
-      if (moves.length > 0) {
-        segments.push({
-          label: `Bring ${name} edge to the bottom layer`,
-          moves,
-        });
+      for (const edge of CROSS_EDGES) {
+        if (isSeated(current, edge)) continue;
+        const { color, name } = edge;
+        const moves: MoveToken[] = [];
+        for (let step = 0; ; step++) {
+          const [face, index] = findEdgeSticker(current, "W", color);
+          if (face === "D") break;
+          if (step >= DAISY_STEP_CAP) {
+            throw new Error(
+              `White cross: ${name} edge did not reach the bottom layer within ${DAISY_STEP_CAP} steps`
+            );
+          }
+          const rule = DAISY_STEPS[`${face}${index}`];
+          if (!rule) {
+            throw new Error(
+              `White cross: no daisy step for white sticker at ${face}[${index}]`
+            );
+          }
+          const stepMoves = [
+            ...alignD(
+              current,
+              (s) => s.D[rule.protect] !== "W",
+              `clear bottom slot D[${rule.protect}] for the ${name} edge`
+            ),
+            rule.move,
+          ];
+          current = applyMoves(current, stepMoves);
+          moves.push(...stepMoves);
+        }
+        if (moves.length > 0) {
+          segments.push({
+            label: `Bring ${name} edge to the bottom layer`,
+            moves,
+          });
+        }
       }
     }
 
     // Phase 2: align each daisy edge under its center and insert with a 180.
-    for (const { color, face, name } of CROSS_EDGES) {
+    for (const edge of CROSS_EDGES) {
+      if (isSeated(current, edge)) continue;
+      const { color, face, name } = edge;
       const slot = D_SLOT[face];
       const moves: MoveToken[] = [
         ...alignD(
