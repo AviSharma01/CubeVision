@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CubeHandle } from "../RubiksCube";
+import { CubeState } from "@/lib/cube/types";
 import { UploadStep } from "./UploadStep";
 import { ProcessingStep, JobFaces } from "./ProcessingStep";
 import { ReviewStep } from "./ReviewStep";
@@ -9,10 +9,10 @@ import { ReviewStep } from "./ReviewStep";
 type Screen = "upload" | "processing" | "review";
 
 interface Props {
-  cubeRef: React.RefObject<CubeHandle | null>;
+  solveCube: (state: CubeState) => Promise<string | null>;
 }
 
-export function PhotoScan({ cubeRef }: Props) {
+export function PhotoScan({ solveCube }: Props) {
   const [screen, setScreen] = useState<Screen>("upload");
   const [jobId, setJobId] = useState<string | null>(null);
   const [faces, setFaces] = useState<JobFaces | null>(null);
@@ -60,7 +60,7 @@ export function PhotoScan({ cubeRef }: Props) {
       {screen === "review" && faces && (
         <ReviewStep
           faces={faces}
-          cubeRef={cubeRef}
+          solveCube={solveCube}
           onStartOver={handleStartOver}
         />
       )}

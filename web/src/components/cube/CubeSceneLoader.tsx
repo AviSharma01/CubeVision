@@ -11,8 +11,15 @@ const CubeScene = dynamic(
 interface Props {
   cubeRef?: React.RefObject<CubeHandle | null>;
   onStatusChange?: (status: PlaybackStatus) => void;
+  annotations?: { stage: string; label: string }[] | null;
 }
 
-export function CubeSceneLoader({ cubeRef, onStatusChange }: Props) {
-  return <CubeScene cubeRef={cubeRef} onStatusChange={onStatusChange} />;
+export function CubeSceneLoader({ cubeRef, onStatusChange, annotations }: Props) {
+  return (
+    <CubeScene
+      cubeRef={cubeRef}
+      onStatusChange={onStatusChange}
+      annotations={annotations}
+    />
+  );
 }

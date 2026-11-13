@@ -4,12 +4,14 @@ import { useRef, useState } from "react";
 import { PanelLeftClose, PanelLeftOpen, Shuffle, Check } from "lucide-react";
 import { CubeHandle, PlaybackStatus } from "@/components/cube/RubiksCube";
 import { CubeSceneLoader } from "@/components/cube/CubeSceneLoader";
-import { CubeEntry, CubeEntryHandle } from "@/components/cube/CubeEntry";
+import { CubeEntry, CubeEntryHandle, SolveMethod } from "@/components/cube/CubeEntry";
 import { CubeErrorBoundary } from "@/components/cube/CubeErrorBoundary";
 import { PhotoScan } from "@/components/cube/PhotoScan";
 import { Button } from "@/components/ui/Button";
 import { generateScramble } from "@/lib/cube/moves";
-import { CubeState, FACE_IDS, SOLVED_STATE, COLOR_HEX } from "@/lib/cube/types";
+import { CubeState, FACE_IDS, SOLVED_STATE, COLOR_HEX, MoveToken } from "@/lib/cube/types";
+import { solveLBL, STAGES } from "@/lib/solver";
+import { flattenResult } from "@/lib/solver/merge";
 
 function isSolvedState(state: CubeState): boolean {
   return FACE_IDS.every((f) => state[f].every((c, i) => c === SOLVED_STATE[f][i]));
@@ -43,6 +45,10 @@ export function SolverLayout() {
   const [tab, setTab] = useState<Tab>("manual");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showSolved, setShowSolved] = useState(false);
+  const [method, setMethod] = useState<SolveMethod>("kociemba");
+  const [annotations, setAnnotations] = useState<
+    { stage: string; label: string }[] | null
+  >(null);
 
   const handleStatusChange = (status: PlaybackStatus) => {
     const prev = prevStatusRef.current;
@@ -55,6 +61,11 @@ export function SolverLayout() {
     // History shrinking while idle means reset() or loadState() jumped the state
     const stateJumped = status.history.length < prev.history.length;
     if (!sequenceEnded && !stateJumped) return;
+
+    // A state jump invalidates any solve annotations. Safe against solveCube's
+    // own loadState: notify() is synchronous, so solveCube's setAnnotations
+    // runs after this clear in the same batch and wins.
+    if (stateJumped) setAnnotations(null);
 
     entryRef.current?.syncFromCube();
 
@@ -70,7 +81,58 @@ export function SolverLayout() {
   const handleScramble = () => {
     cubeRef.current?.loadState(SOLVED_STATE);
     cubeRef.current?.queueMoves(generateScramble());
+    setAnnotations(null);
     setTab("manual");
+  };
+
+  // The only way components load a state onto the cube — keeps annotations
+  // in sync with the queue (there must be no queue change without one).
+  const loadCube = (state: CubeState) => {
+    cubeRef.current?.loadState(state);
+    setAnnotations(null);
+  };
+
+  // Shared solve entry point for CubeEntry and ReviewStep. Returns an error
+  // message to display, or null on success. The loadState / queueMoves /
+  // setAnnotations trio below is the only place annotations become non-null.
+  const solveCube = async (state: CubeState): Promise<string | null> => {
+    if (isSolvedState(state)) {
+      return "This cube is already solved — scramble it or paint a new state first.";
+    }
+
+    if (method === "beginner") {
+      let moves: MoveToken[];
+      let anns: { stage: string; label: string }[];
+      try {
+        ({ moves, annotations: anns } = flattenResult(solveLBL(state, STAGES)));
+      } catch (e) {
+        return e instanceof Error ? e.message : "Unknown error";
+      }
+      cubeRef.current?.loadState(state);
+      cubeRef.current?.queueMoves(moves);
+      setAnnotations(anns);
+      return null;
+    }
+
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+      const res = await fetch(`${apiBase}/solve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cube_state: state }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as { detail?: string }).detail ?? `Server error ${res.status}`);
+      }
+      const { moves } = (await res.json()) as { moves: MoveToken[]; move_count: number };
+      cubeRef.current?.loadState(state);
+      cubeRef.current?.queueMoves(moves);
+      setAnnotations(null);
+      return null;
+    } catch (e) {
+      return e instanceof Error ? e.message : "Unknown error";
+    }
   };
 
   return (
@@ -123,10 +185,17 @@ export function SolverLayout() {
             {/* Both panels stay mounted so their state survives tab switches */}
             <div className="flex-1 overflow-y-auto p-4">
               <div className={tab === "manual" ? "" : "hidden"}>
-                <CubeEntry ref={entryRef} cubeRef={cubeRef} />
+                <CubeEntry
+                  ref={entryRef}
+                  cubeRef={cubeRef}
+                  solveCube={solveCube}
+                  loadCube={loadCube}
+                  method={method}
+                  onMethodChange={setMethod}
+                />
               </div>
               <div className={tab === "photo" ? "" : "hidden"}>
-                <PhotoScan cubeRef={cubeRef} />
+                <PhotoScan solveCube={solveCube} />
               </div>
             </div>
           </div>
@@ -157,7 +226,11 @@ export function SolverLayout() {
           )}
 
           <CubeErrorBoundary>
-            <CubeSceneLoader cubeRef={cubeRef} onStatusChange={handleStatusChange} />
+            <CubeSceneLoader
+              cubeRef={cubeRef}
+              onStatusChange={handleStatusChange}
+              annotations={annotations}
+            />
           </CubeErrorBoundary>
         </div>
       </div>

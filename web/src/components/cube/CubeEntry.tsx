@@ -9,7 +9,6 @@ import {
   FACE_IDS,
   SOLVED_STATE,
   COLOR_HEX,
-  MoveToken,
 } from "@/lib/cube/types";
 import { CubeHandle } from "./RubiksCube";
 import { FaceGrid } from "./FaceGrid";
@@ -36,12 +35,27 @@ export interface CubeEntryHandle {
   syncFromCube(): void;
 }
 
+export type SolveMethod = "kociemba" | "beginner";
+
+const METHODS: { id: SolveMethod; name: string; caption: string }[] = [
+  { id: "kociemba", name: "Kociemba", caption: "~20 moves · computer method" },
+  {
+    id: "beginner",
+    name: "Beginner",
+    caption: "~175 moves · ~35 explained steps · human method",
+  },
+];
+
 interface Props {
   cubeRef: React.RefObject<CubeHandle | null>;
+  solveCube: (state: CubeState) => Promise<string | null>;
+  loadCube: (state: CubeState) => void;
+  method: SolveMethod;
+  onMethodChange: (method: SolveMethod) => void;
 }
 
 export const CubeEntry = forwardRef<CubeEntryHandle, Props>(
-function CubeEntry({ cubeRef }, ref) {
+function CubeEntry({ cubeRef, solveCube, loadCube, method, onMethodChange }, ref) {
   const [state, setState] = useState<CubeState>(SOLVED_STATE);
   const [selected, setSelected] = useState<Color>("W");
   const [loading, setLoading] = useState(false);
@@ -63,9 +77,6 @@ function CubeEntry({ cubeRef }, ref) {
   }, {} as Record<Color, number>);
 
   const isValid = COLORS.every((c) => counts[c] === 9);
-  const isSolved = isValid && FACE_IDS.every((f) =>
-    state[f].every((c) => c === SOLVED_STATE[f][4])
-  );
 
   const syncFromCube = () => {
     const current = cubeRef.current?.getState();
@@ -78,36 +89,17 @@ function CubeEntry({ cubeRef }, ref) {
   useImperativeHandle(ref, () => ({ syncFromCube }));
 
   const handleSolve = async () => {
-    if (isSolved) {
-      setError("Already solved!");
-      return;
-    }
     setLoading(true);
     setError(null);
-    try {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-      const res = await fetch(`${apiBase}/solve`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cube_state: state }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error((data as { detail?: string }).detail ?? `Server error ${res.status}`);
-      }
-      const { moves } = (await res.json()) as { moves: MoveToken[]; move_count: number };
-      cubeRef.current?.queueMoves(moves);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Unknown error");
-    } finally {
-      setLoading(false);
-    }
+    const err = await solveCube(state);
+    if (err) setError(err);
+    setLoading(false);
   };
 
   const handleReset = () => {
     setState(SOLVED_STATE);
     setError(null);
-    cubeRef.current?.loadState(SOLVED_STATE);
+    loadCube(SOLVED_STATE);
   };
 
   return (
@@ -178,6 +170,25 @@ function CubeEntry({ cubeRef }, ref) {
           {error}
         </p>
       )}
+
+      {/* Solve method — choice applies at Solve time */}
+      <div className="flex gap-2">
+        {METHODS.map((m) => (
+          <Button
+            key={m.id}
+            active={method === m.id}
+            onClick={() => onMethodChange(m.id)}
+            className="flex-1"
+          >
+            <span className="flex flex-col items-center py-0.5">
+              <span>{m.name}</span>
+              <span className="text-[10px] font-normal leading-tight text-white/40">
+                {m.caption}
+              </span>
+            </span>
+          </Button>
+        ))}
+      </div>
 
       {/* Actions */}
       <div className="flex gap-2">

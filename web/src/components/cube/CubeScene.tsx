@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, ContactShadows } from "@react-three/drei";
 import { Play, Pause, SkipBack, SkipForward, RotateCcw, Info, X } from "lucide-react";
@@ -12,6 +12,8 @@ import { MoveToken } from "@/lib/cube/types";
 interface CubeSceneProps {
   cubeRef?: React.RefObject<CubeHandle | null>;
   onStatusChange?: (status: PlaybackStatus) => void;
+  /** Per-move stage/label annotations, parallel to the queued solve (or null) */
+  annotations?: { stage: string; label: string }[] | null;
 }
 
 const SPEEDS = [0.5, 1, 2] as const;
@@ -51,7 +53,13 @@ function MoveIndicator({ move }: { move: MoveToken }) {
  * Completed moves dim, the current move is highlighted, upcoming moves wait
  * to the right. Auto-scrolls to keep the current move centred.
  */
-function MoveTape({ status }: { status: PlaybackStatus }) {
+function MoveTape({
+  status,
+  annotations,
+}: {
+  status: PlaybackStatus;
+  annotations?: { stage: string; label: string }[] | null;
+}) {
   const activeRef = useRef<HTMLSpanElement>(null);
   const doneCount = status.history.length;
 
@@ -84,27 +92,52 @@ function MoveTape({ status }: { status: PlaybackStatus }) {
 
   if (tokens.length === 0) return null;
 
+  // Trust annotations only when they cover the tape's tokens exactly; anything
+  // else (stale after a reset, demo moves appended) renders as today's
+  // unannotated tape. During an undo the in-flight move sits in both history
+  // and pending, so tokens.length — not history + pending — is the move count.
+  const anns =
+    annotations && annotations.length === tokens.length ? annotations : null;
+  // Index of the move being animated: forward moves aren't in history yet;
+  // an undone move is still history's last entry.
+  const current =
+    anns && status.isAnimating
+      ? anns[status.isUndo ? doneCount - 1 : doneCount]
+      : null;
+
   return (
-    <div className="no-scrollbar max-w-[min(90vw,42rem)] overflow-x-auto rounded-xl border border-hairline bg-panel/80 px-3 py-2 backdrop-blur-sm">
-      <div className="flex w-max items-center gap-1 font-mono text-sm">
-        {tokens.map(({ move, state }, i) => (
-          <span
-            key={i}
-            ref={state === "current" ? activeRef : undefined}
-            className={[
-              "rounded-md px-1.5 py-0.5 tabular-nums transition-colors duration-200",
-              state === "done" && "text-white/30",
-              state === "current" && "bg-white font-bold text-black",
-              state === "pending" && "text-white/70",
-            ]
-              .filter(Boolean)
-              .join(" ")}
-          >
-            {move}
-          </span>
-        ))}
+    <>
+      {current && (
+        <p className="text-xs">
+          <span className="text-white/40">{current.stage} · </span>
+          <span className="text-white/70">{current.label}</span>
+        </p>
+      )}
+      <div className="no-scrollbar max-w-[min(90vw,42rem)] overflow-x-auto rounded-xl border border-hairline bg-panel/80 px-3 py-2 backdrop-blur-sm">
+        <div className="flex w-max items-center gap-1 font-mono text-sm">
+          {tokens.map(({ move, state }, i) => (
+            <Fragment key={i}>
+              {anns && i > 0 && anns[i].stage !== anns[i - 1].stage && (
+                <span className="h-4 w-px shrink-0 bg-hairline" />
+              )}
+              <span
+                ref={state === "current" ? activeRef : undefined}
+                className={[
+                  "rounded-md px-1.5 py-0.5 tabular-nums transition-colors duration-200",
+                  state === "done" && "text-white/30",
+                  state === "current" && "bg-white font-bold text-black",
+                  state === "pending" && "text-white/70",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+              >
+                {move}
+              </span>
+            </Fragment>
+          ))}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -182,7 +215,11 @@ function InfoModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-export function CubeScene({ cubeRef: externalRef, onStatusChange: onStatusChangeProp }: CubeSceneProps) {
+export function CubeScene({
+  cubeRef: externalRef,
+  onStatusChange: onStatusChangeProp,
+  annotations,
+}: CubeSceneProps) {
   const internalRef = useRef<CubeHandle>(null);
   const cubeRef = externalRef ?? internalRef;
   const [status, setStatus] = useState<PlaybackStatus>({
@@ -212,8 +249,12 @@ export function CubeScene({ cubeRef: externalRef, onStatusChange: onStatusChange
 
   const isActive = status.isAnimating || status.queueLength > 0;
   const done = status.history.length;
-  const total = done + (status.currentMove ? 1 : 0) + status.queueLength;
-  const moveNumber = done + (status.currentMove ? 1 : 0);
+  // During an undo the in-flight move is double-counted: still in history and
+  // already back in the queue, with currentMove holding its inverse.
+  const total =
+    done + (status.currentMove ? 1 : 0) + status.queueLength -
+    (status.isUndo ? 2 : 0);
+  const moveNumber = done + (status.currentMove && !status.isUndo ? 1 : 0);
   const progress = total > 0 ? (moveNumber / total) * 100 : 0;
 
   return (
@@ -264,7 +305,7 @@ export function CubeScene({ cubeRef: externalRef, onStatusChange: onStatusChange
 
       {/* Bottom cluster: tape + transport controls */}
       <div className="absolute bottom-5 left-1/2 flex -translate-x-1/2 flex-col items-center gap-2.5">
-        <MoveTape status={status} />
+        <MoveTape status={status} annotations={annotations} />
 
         {isActive && (
           <p className="text-xs text-white/40 tabular-nums">

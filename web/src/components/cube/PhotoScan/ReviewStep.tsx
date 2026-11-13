@@ -8,10 +8,8 @@ import {
   FaceId,
   FACE_IDS,
   COLOR_HEX,
-  MoveToken,
   SOLVED_STATE,
 } from "@/lib/cube/types";
-import { CubeHandle } from "../RubiksCube";
 import { FaceGrid } from "../FaceGrid";
 import { Button } from "@/components/ui/Button";
 import { JobFaces } from "./ProcessingStep";
@@ -50,11 +48,11 @@ function lowConfidenceIndices(faces: JobFaces, faceId: FaceId): Set<number> {
 
 interface Props {
   faces: JobFaces;
-  cubeRef: React.RefObject<CubeHandle | null>;
+  solveCube: (state: CubeState) => Promise<string | null>;
   onStartOver: () => void;
 }
 
-export function ReviewStep({ faces, cubeRef, onStartOver }: Props) {
+export function ReviewStep({ faces, solveCube, onStartOver }: Props) {
   const [state, setState] = useState<CubeState>(() => jobFacesToCubeState(faces));
   const [selected, setSelected] = useState<Color>("W");
   const [loading, setLoading] = useState(false);
@@ -86,25 +84,9 @@ export function ReviewStep({ faces, cubeRef, onStartOver }: Props) {
   const handleSolve = async () => {
     setLoading(true);
     setError(null);
-    try {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-      const res = await fetch(`${apiBase}/solve`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cube_state: state }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error((data as { detail?: string }).detail ?? `Server error ${res.status}`);
-      }
-      const { moves } = (await res.json()) as { moves: MoveToken[]; move_count: number };
-      cubeRef.current?.loadState(state);
-      cubeRef.current?.queueMoves(moves);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Unknown error");
-    } finally {
-      setLoading(false);
-    }
+    const err = await solveCube(state);
+    if (err) setError(err);
+    setLoading(false);
   };
 
   return (
